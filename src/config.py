@@ -1,4 +1,8 @@
 import torch
+import os
+
+FIGURE_FOLDER = 'figures'
+RESULTS_FOLDER = 'result_storage'
 
 
 def get_config():
@@ -14,6 +18,14 @@ def get_config():
     return config_dict
 
 
-def set_randomness():
-    random_seed = 1
+def set_up_paths():
+    folders = [FIGURE_FOLDER, RESULTS_FOLDER]
+    for folder in folders:
+        if not os.path.exists(folder):
+            print('Creating folder', folder, '...')
+            os.makedirs(folder)
+
+
+def set_randomness(seed):
+    random_seed = seed
     torch.manual_seed(random_seed)

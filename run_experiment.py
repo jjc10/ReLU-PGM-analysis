@@ -1,13 +1,16 @@
-from src.analysis import check_results, compile_results
+import os
+from file_utils import generate_run_id, store_results
+from src.analysis import compile_results
 from src.train import train_model
 from src.model import build_model
-from src.config import get_config, set_randomness
+from src.config import RESULTS_FOLDER, get_config, set_randomness, set_up_paths
 from src.data import get_data
 from src.plot_util import look_at_point
 import numpy as np
-# Set config and load data
+# Set up path, set config and load data
+set_up_paths()
 config_dict = get_config()
-set_randomness()
+set_randomness(seed=3)
 train_loader, test_loader = get_data(config_dict)
 examples = enumerate(test_loader)
 batch_idx, (example_data, example_targets) = next(examples)
@@ -15,16 +18,18 @@ batch_idx, (example_data, example_targets) = next(examples)
 
 # get dimension of flatten input 1x28x28 -> 784
 input_size = np.prod(example_data[0].shape)
-
 network = build_model(input_size, config_dict)
 
+run_id = generate_run_id()
+run_path = os.path.join(RESULTS_FOLDER, run_id)
+os.makedirs(run_path)
 # look at relu activated in the network by the data before training
 init_compiled_results = compile_results(network, test_loader, train_loader)
 
-train_model(network, train_loader, test_loader, config_dict)
+train_model(network, train_loader, test_loader, config_dict, run_path)
 
 # look at relu activated in the network by the data after training
 post_compiled_results = compile_results(network, test_loader, train_loader)
+list_results_to_combine = [init_compiled_results, post_compiled_results]
+store_results('results', list_results_to_combine, run_path)
 
-check_results(init_compiled_results, prefix='init_')
-check_results(post_compiled_results, prefix='post_')

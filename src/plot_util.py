@@ -15,12 +15,12 @@ def look_at_point(data, targets):
     plt.close()
 
 
-def plot_code_histograms(codes_histogram, prefix_title, prefix_file):
-    # print('Summing a histogram, it should (almost) be 1',
-    #       np.sum(list(codes_histogram.values())))
-    values = list(codes_histogram.values())
-    values.sort()
-    plt.bar(range(len(values)), values, 1, color='g')
+def plot_code_histograms(codes_histograms, labels, prefix_title, prefix_file):
+    for i, codes_histogram in enumerate(codes_histograms):
+        values = list(codes_histogram.values())
+        values.sort()
+        plt.bar(range(len(values)), values, 1, label=labels[i])
+    plt.legend()
     plt.title(prefix_title+' code histograms')
     plt.savefig('figures/'+prefix_file + 'code_histogram.pdf')
     plt.close()
