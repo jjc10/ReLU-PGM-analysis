@@ -17,7 +17,7 @@ def iterate_and_collect(loader, network):
     network.eval()  # put the model in eval mode
     code_histogram = {}
     num_datapoints = loader.sampler.num_samples
-
+    code_per_layer_histograms = [{} for _ in range(network.depht)]
     # collect all activated codes by the data in loader
     with torch.no_grad():
         for data, target in loader:
@@ -25,18 +25,15 @@ def iterate_and_collect(loader, network):
             batch_code_numpy = [layer.cpu().detach().numpy()
                                 for layer in batch_code_tensor]
             for b in range(batch_code_numpy[0].shape[0]):
-                code = '-'.join([''.join(layer[b, :].astype(int).astype(str))
-                                for layer in batch_code_numpy])
+                code_chunks = [''.join(layer[b, :].astype(int).astype(str))
+                                for layer in batch_code_numpy]
+                for l, code_chunk in enumerate(code_chunks):
+                    layer_code_histogram = code_per_layer_histograms[l]
+                    add_code_histo(layer_code_histogram, code_chunk, num_datapoints)
+                code = '-'.join(code_chunks)
                 add_code_histo(code_histogram, code, num_datapoints)
 
-    code_per_layer_histograms = [{} for _ in range(network.depht)]
-    # each layer's code is separated by -
-    # look at each layer's code separately
-    for key, value in code_histogram.items():
-        codes_per_layer = key.split('-')
-        for layer_index, layer_code in enumerate(codes_per_layer):
-            layer_code_histogram = code_per_layer_histograms[layer_index]
-            add_code_histo(layer_code_histogram, key=layer_code, total=1/value)
+    
 
     results = {'code_histogram': code_histogram,
                'code_per_layer_histograms': code_per_layer_histograms}

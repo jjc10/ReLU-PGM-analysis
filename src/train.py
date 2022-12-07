@@ -1,17 +1,32 @@
 import os
+import numpy as np
 import torch.nn.functional as F
 import torch.optim as optim
 import torch
+from torch.utils.tensorboard import SummaryWriter
 
+from src.config import set_up_paths
+
+def count_gradient_norm(parameters):
+    total_norm = 0
+    for p in parameters:
+        if p.grad is not None:
+            param_norm = p.grad.detach().data.norm(2)
+            total_norm += param_norm.item() ** 2
+    total_norm = total_norm ** 0.5
+    return total_norm
 
 def train_model(network, train_loader, test_loader, config_dict, run_path):
+    log_dir = os.path.join(run_path, 'logs')
+    set_up_paths([log_dir])
+    writer = SummaryWriter(log_dir=log_dir)
     optimizer = optim.SGD(network.parameters(), lr=config_dict['learning_rate'],
                           momentum=config_dict['momentum'])
 
     train_losses = []
     train_counter = []
     test_losses = []
-
+    gradient = []
     def train(epoch):
         network.train()
         for batch_idx, (data, target) in enumerate(train_loader):
@@ -19,16 +34,20 @@ def train_model(network, train_loader, test_loader, config_dict, run_path):
             output = network(data)
             loss = F.nll_loss(output, target, reduction='sum')
             loss.backward()
+            gradient.append(count_gradient_norm(network.parameters()))
             optimizer.step()
-
             train_losses.append(loss.item())
             train_counter.append(
                 (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
-            torch.save(network.state_dict(),
-                       os.path.join(run_path, 'model.pth'))
-            torch.save(optimizer.state_dict(),
-                       os.path.join(run_path, 'optimizer.pth'))
-
+        
+        torch.save(network.state_dict(),
+                    os.path.join(run_path, 'model.pth'))
+        torch.save(optimizer.state_dict(),
+                    os.path.join(run_path, 'optimizer.pth'))
+        total_loss = np.sum(train_losses)
+        total_gradient =np.sum(gradient)
+        writer.add_scalar('Loss/train', total_loss, epoch)
+        writer.add_scalar('gradient', total_gradient, epoch)
     def test():
         network.eval()
         test_loss = 0
@@ -59,6 +78,9 @@ def train_model(network, train_loader, test_loader, config_dict, run_path):
         #     train_loss, correct, len(train_loader.dataset),
         #     100. * correct / len(train_loader.dataset)))
 
+    
+
+   
     test()
     for epoch in range(1, config_dict['n_epochs'] + 1):
         train(epoch)

@@ -13,13 +13,13 @@ def get_config():
                    'learning_rate': 0.01,
                    'momentum': 0.5,
                    'depht': 2,
-                   'hidden_size': 8}
+                   'hidden_size': 8,
+                   'trials': 2}
 
     return config_dict
 
 
-def set_up_paths():
-    folders = [FIGURE_FOLDER, RESULTS_FOLDER]
+def set_up_paths(folders):
     for folder in folders:
         if not os.path.exists(folder):
             print('Creating folder', folder, '...')
