@@ -13,7 +13,7 @@ def add_code_histo(histo_dict, key, total):
         histo_dict[key] = 1/total
 
 
-def iterate_and_collect(loader, network):
+def iterate_and_collect(loader, network, prefix=''):
     network.eval()  # put the model in eval mode
     code_histogram = {}
     num_datapoints = loader.sampler.num_samples
@@ -26,41 +26,33 @@ def iterate_and_collect(loader, network):
                                 for layer in batch_code_tensor]
             for b in range(batch_code_numpy[0].shape[0]):
                 code_chunks = [''.join(layer[b, :].astype(int).astype(str))
-                                for layer in batch_code_numpy]
+                               for layer in batch_code_numpy]
                 for l, code_chunk in enumerate(code_chunks):
                     layer_code_histogram = code_per_layer_histograms[l]
-                    add_code_histo(layer_code_histogram, code_chunk, num_datapoints)
+                    add_code_histo(layer_code_histogram,
+                                   code_chunk, num_datapoints)
                 code = '-'.join(code_chunks)
                 add_code_histo(code_histogram, code, num_datapoints)
 
-    
-
-    results = {'code_histogram': code_histogram,
-               'code_per_layer_histograms': code_per_layer_histograms}
+    results = {prefix+'code_histogram': code_histogram}
+    for l, code_per_layer_histogram in enumerate(code_per_layer_histograms):
+        results[prefix+'code_'+str(l)+'_histogram'] = code_per_layer_histogram
     return results
 
 
 def compile_results(network, test_loader, train_loader):
 
     # iterate through the test set and check which codes are being activated
-    test_results = iterate_and_collect(test_loader, network)
-    train_results = iterate_and_collect(train_loader, network)
-
-    test_code_histogram = test_results['code_histogram']
-    train_code_histogram = train_results['code_histogram']
-    test_code_per_layer_histogram = test_results['code_per_layer_histograms']
-    train_code_per_layer_histogram = train_results['code_per_layer_histograms']
+    test_results = iterate_and_collect(test_loader, network, prefix='test_')
+    train_results = iterate_and_collect(train_loader, network, prefix='train_')
 
     percent_test_unseen_train = 0
-    for code, val in test_code_histogram.items():
-        if code not in train_code_histogram:
+    for code, val in test_results['test_code_histogram'].items():
+        if code not in train_results['train_code_histogram']:
             percent_test_unseen_train += val
 
-    compiled_results = {'test_code_histogram': test_code_histogram,
-                        'train_code_histogram': train_code_histogram,
-                        'test_code_per_layer_histogram': test_code_per_layer_histogram,
-                        'train_code_per_layer_histogram': train_code_per_layer_histogram,
-                        'percent_test_unseen_train': percent_test_unseen_train}
+    compiled_results = test_results
+    compiled_results.update(train_results)
     return compiled_results
 
 
@@ -74,7 +66,17 @@ def count_fraction_code_visited(code_histogram):
     return total_number_codes, visited_number_codes, visited_number_codes/total_number_codes
 
 
-def check_results(list_compiled_results, labels, prefix=''):
+def combine_all_trials(result_dict):
+    combined_results = {}
+    
+    return combined_results
+
+
+def check_results(result_dict, prefix=''):
+    num_trials = len(result_dict.keys())
+
+    combined_results = combine_all_trials(result_dict)
+
     table_array = np.zeros((4, 5)).astype(object)
     i = 0
     table_array[0, 0] = '% not in train'
@@ -86,7 +88,7 @@ def check_results(list_compiled_results, labels, prefix=''):
         table_entry = '(${:.0f}/2^{:.0f}$) {:2.2f} \%'.format(
             visited, math.log2(total), fraction*100)
         table_array[row, column] = table_entry
-   
+
     for compiled_results in list_compiled_results:
 
         table_array[0, (i*2)+2] = "{:2.2f}\%".format(
@@ -110,13 +112,14 @@ def check_results(list_compiled_results, labels, prefix=''):
                 test_code_layer_histogram)
             put_entry(d+1, (i*2) + 2, total, visited, fraction)
         i += 1
-   
+
     table_1 = Texttable()
     table_1.set_cols_align(["l", "c", "c", "c", "c"])
-    rows = [[str(table_entry) for table_entry in table_array[i]] for i in range(4)]
+    rows = [[str(table_entry) for table_entry in table_array[i]]
+            for i in range(4)]
     table_1.add_rows([["f", "pre training", "", "post training", ""],
-                     ['x', 'train', 'test', 'train', 'test']]+ rows)
-    
+                     ['x', 'train', 'test', 'train', 'test']] + rows)
+
     print(table_1.draw())
     print('\nLatextable Output:')
     print(latextable.draw_latex(
@@ -130,10 +133,14 @@ def check_results(list_compiled_results, labels, prefix=''):
                          prefix_title=prefix+'test', prefix_file=prefix+'test_')
     plot_code_histograms(train_histograms, labels,
                          prefix_title=prefix+'train', prefix_file=prefix+'training_')
-    train_prefix_histograms = [compiled_results['train_code_per_layer_histogram'][0] for compiled_results in list_compiled_results]
-    train_suffix_histograms = [compiled_results['train_code_per_layer_histogram'][1] for compiled_results in list_compiled_results]
-    test_prefix_histograms = [compiled_results['test_code_per_layer_histogram'][0] for compiled_results in list_compiled_results]
-    test_suffix_histograms = [compiled_results['test_code_per_layer_histogram'][1] for compiled_results in list_compiled_results]
+    train_prefix_histograms = [compiled_results['train_code_per_layer_histogram'][0]
+                               for compiled_results in list_compiled_results]
+    train_suffix_histograms = [compiled_results['train_code_per_layer_histogram'][1]
+                               for compiled_results in list_compiled_results]
+    test_prefix_histograms = [compiled_results['test_code_per_layer_histogram'][0]
+                              for compiled_results in list_compiled_results]
+    test_suffix_histograms = [compiled_results['test_code_per_layer_histogram'][1]
+                              for compiled_results in list_compiled_results]
     plot_code_histograms(train_prefix_histograms, labels,
                          prefix_title=prefix+'train_prefix', prefix_file=prefix+'train_prefix_')
     plot_code_histograms(train_suffix_histograms, labels,
