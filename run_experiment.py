@@ -30,11 +30,11 @@ for trial in range(config_dict['trials']):
     set_up_paths([run_path_trial])
     network = build_model(input_size, config_dict)
     # look at relu activated in the network by the data before training
-    init_compiled_results = compile_results(network, test_loader, train_loader)
+    init_compiled_results = compile_results(network, test_loader, train_loader, result_prefix='init_')
     train_model(network, train_loader, test_loader, config_dict, run_path_trial)
     # look at relu activated in the network by the data after training
-    post_compiled_results = compile_results(network, test_loader, train_loader)
-    result_dict[trial] = {'init': init_compiled_results,
-                          'post': post_compiled_results}
+    post_compiled_results = compile_results(network, test_loader, train_loader, result_prefix='post_')
+    result_dict[trial] = post_compiled_results
+    result_dict[trial].update(init_compiled_results)
 store_results('results', result_dict, run_path)
 store_results('config', config_dict, run_path)
