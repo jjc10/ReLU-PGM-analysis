@@ -97,7 +97,7 @@ def build_latex_table(processed_result):
     def generat_row(end_str, title):
         row = [processed_result['init_train_'+end_str], processed_result['init_test_'+end_str],
                processed_result['post_train_'+end_str], processed_result['post_test_'+end_str]]
-        string_row = ['{:2.2f} $\pm$ {:2.2f} \%'.format(
+        string_row = ['${:2.2f}\pm{:2.2f}$ \%'.format(
             cell[0]*100, cell[1]*100) for cell in row]
         return [title]+string_row
     row_pre = generat_row('code_0_histogram_fraction', 'code prefix')
@@ -116,8 +116,47 @@ def build_latex_table(processed_result):
         table_1, caption="Fraction of visited codes", label="table:vis_code"))
 
 
+def compute_suffix_per_prefix(full_code_histogram):
+    prefix_key_dict = {}
+    for full_code, freq in full_code_histogram.items():
+        code_chunks = full_code.split('-')
+        prefix = code_chunks[0]
+        suffix = code_chunks[1]
+        if prefix in prefix_key_dict:
+            prefix_key_dict[prefix][suffix] = freq
+        else:
+            prefix_key_dict[prefix] = {suffix: freq}
+
+    return prefix_key_dict
+
+
+def get_suffix_per_prefix(result_dict):
+  # suffix per prefix
+    prefix_key_dict = compute_suffix_per_prefix(
+        result_dict['post_train_code_histogram'])
+    suffix_per_prefix = {}
+    for prefix, suffixes in prefix_key_dict.items():
+        suffix_per_prefix[prefix] = len(list(suffixes.keys()))
+    return suffix_per_prefix
+
+
 def generate_plots_first_trial(result_dict):
-    pass
+    prefix = 'code_0_histogram'
+    suffix = 'code_1_histogram'
+    full = 'code_histogram'
+    labels = ['init train', 'post train', 'init test', 'post test']
+
+    suffix_per_prefix = get_suffix_per_prefix(result_dict)
+    plot_code_histograms([suffix_per_prefix], ['post train'],
+                         'suffix_per_prefix', 'suffix_per_prefix_')
+    # generate full/prefix/suffix histograms
+    plot_code_histograms([result_dict['init_train_'+prefix], result_dict['post_train_'+prefix],
+                         result_dict['init_test_'+prefix], result_dict['post_test_'+prefix]], labels, 'prefix', 'prefix_')
+    plot_code_histograms([result_dict['init_train_'+suffix], result_dict['post_train_'+suffix],
+                          result_dict['init_test_'+suffix], result_dict['post_test_'+suffix]], labels, 'suffix', 'suffix_')
+    plot_code_histograms([result_dict['init_train_'+full], result_dict['post_train_'+full],
+                         result_dict['init_test_'+full], result_dict['post_test_'+full]], labels, 'full', 'full_')
+
 
 def check_results(result_dict, prefix=''):
     num_trials = len(result_dict.keys())
