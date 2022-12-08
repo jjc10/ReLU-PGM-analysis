@@ -8,8 +8,8 @@ def build_latex_table(rows, caption, label):
     table_1.set_deco(Texttable.HEADER )
     table_1.add_rows(rows)
 
-    # print(table_1.draw())
-    # print('\nLatextable Output:')
+    print(table_1.draw())
+    print('\nLatextable Output:')
     print(latextable.draw_latex(
         table_1, caption=caption, label=label))
 

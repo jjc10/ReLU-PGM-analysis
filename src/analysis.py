@@ -4,22 +4,29 @@ import torch
 from src.plot_util import plot_code_histograms
 
 
-def add_code_histo(histo_dict, key, total):
+def add_code_histo(histo_dict, key, total, class_per_code_histogram, pred, target):
     if key in histo_dict:
         histo_dict[key] += 1/total
+        class_per_code_histogram[key].append((pred, target))
     else:
         histo_dict[key] = 1/total
+        class_per_code_histogram[key] = [(pred, target)]
 
 
 def iterate_and_collect(loader, network, result_prefix=''):
     network.eval()  # put the model in eval mode
     code_histogram = {}
+    class_per_code_histogram = {}
     num_datapoints = loader.sampler.num_samples
     code_per_layer_histograms = [{} for _ in range(network.depht)]
+    class_per_layer_histograms = [{} for _ in range(network.depht)]
     # collect all activated codes by the data in loader
     with torch.no_grad():
         for data, target in loader:
             output, batch_code_tensor = network.forward_get_code(data)
+            pred = [int(out.cpu().detach().numpy())
+                    for out in output.data.max(1, keepdim=True)[1]]
+            target = target.cpu().detach().numpy()
             batch_code_numpy = [layer.cpu().detach().numpy()
                                 for layer in batch_code_tensor]
             for b in range(batch_code_numpy[0].shape[0]):
@@ -27,15 +34,21 @@ def iterate_and_collect(loader, network, result_prefix=''):
                                for layer in batch_code_numpy]
                 for l, code_chunk in enumerate(code_chunks):
                     layer_code_histogram = code_per_layer_histograms[l]
+                    class_per_layer_histogram = class_per_layer_histograms[l]
                     add_code_histo(layer_code_histogram,
-                                   code_chunk, num_datapoints)
+                                   code_chunk, num_datapoints, class_per_layer_histogram, pred[b], target[b])
                 code = '-'.join(code_chunks)
-                add_code_histo(code_histogram, code, num_datapoints)
+                add_code_histo(code_histogram,  code,
+                               num_datapoints, class_per_code_histogram, pred[b], target[b])
 
     results = {result_prefix+'code_histogram': code_histogram}
+    results[result_prefix+'class_histogram'] = class_per_code_histogram
     for l, code_per_layer_histogram in enumerate(code_per_layer_histograms):
         results[result_prefix+'code_' +
                 str(l)+'_histogram'] = code_per_layer_histogram
+
+        results[result_prefix+'class_' +
+                str(l)+'_histogram'] = class_per_layer_histograms[l]
     return results
 
 

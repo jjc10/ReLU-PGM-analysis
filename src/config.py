@@ -14,7 +14,7 @@ def get_config():
                    'momentum': 0.9,
                    'depht': 2,
                    'hidden_size': 8,
-                   'trials': 10}
+                   'trials': 3}
 
     return config_dict
 
