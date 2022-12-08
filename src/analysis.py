@@ -182,7 +182,7 @@ def build_latex_table_top_codes(result_dict):
     def create_rows(list_table_entries):
         rows = []
         for i in range(NUM_TOP_CODES):
-            row = ['i']
+            row = [str(i)]
             for table_entry in list_table_entries:
                 code = table_entry['top_codes'][i]
                 m = '${:2.2f}$ \%'.format(
@@ -192,19 +192,22 @@ def build_latex_table_top_codes(result_dict):
                 row = row+[code, m, cm]
             rows.append(row)
         return rows
+
+    title_row = [["x", "train", "", "", "test", "", ""],
+            ['order', 'code', 'mass', 'cumul. mass', 'code', 'mass', 'cumul. mass']]
     full_rows = create_rows(
         [table_entry_dict['post_train_'+full], table_entry_dict['post_test_'+full]])
-    build_latex_table(full_rows, "Top codes of full code",
+    build_latex_table(title_row+full_rows, "Top codes of full code",
                       label='fig:top_code')
 
     prefix_rows = create_rows(
         [table_entry_dict['post_train_'+prefix], table_entry_dict['post_test_'+prefix]])
-    build_latex_table(prefix_rows, "Top codes of prefix",
+    build_latex_table(title_row+prefix_rows, "Top codes of prefix",
                       label='fig:prefix_top_code')
 
     suffix_rows = create_rows(
         [table_entry_dict['post_train_'+suffix], table_entry_dict['post_test_'+suffix]])
-    build_latex_table(suffix_rows, "Top codes of suffix",
+    build_latex_table(title_row+suffix_rows, "Top codes of suffix",
                       label='fig:suffix_top_code')
 
 
