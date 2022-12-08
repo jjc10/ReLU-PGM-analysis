@@ -1,9 +1,7 @@
-import math
+from src.table_helper import build_latex_table
 import numpy as np
 import torch
 from src.plot_util import plot_code_histograms
-import latextable
-from texttable import Texttable
 
 
 def add_code_histo(histo_dict, key, total):
@@ -108,20 +106,6 @@ def build_latex_table_code_frequency(processed_result):
     build_latex_table(rows, "Fraction of visited codes", "table:vis_code")
 
 
-def build_latex_table(rows, caption, label):
-
-    table_1 = Texttable()
-    col_aligns = ['c' for _ in range(len(rows[0])-1)]
-    table_1.set_cols_align(["l"]+col_aligns)
-
-    table_1.add_rows(rows)
-
-    print(table_1.draw())
-    print('\nLatextable Output:')
-    print(latextable.draw_latex(
-        table_1, caption=caption, label=label))
-
-
 def compute_suffix_per_prefix(full_code_histogram):
     prefix_key_dict = {}
     for full_code, freq in full_code_histogram.items():
@@ -194,7 +178,7 @@ def build_latex_table_top_codes(result_dict):
         return rows
 
     title_row = [["x", "train", "", "", "test", "", ""],
-            ['order', 'code', 'mass', 'cumul. mass', 'code', 'mass', 'cumul. mass']]
+                 ['order', 'code', 'mass', 'cumul. mass', 'code', 'mass', 'cumul. mass']]
     full_rows = create_rows(
         [table_entry_dict['post_train_'+full], table_entry_dict['post_test_'+full]])
     build_latex_table(title_row+full_rows, "Top codes of full code",
