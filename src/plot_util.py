@@ -24,9 +24,6 @@ def plot_code_histograms(codes_histograms, labels, prefix_title, prefix_file):
                 if c in binary_counter:
                     binary_counter[c] += value
         values = list(codes_histogram.values())
-        sorted_index = list(np.argsort(values))[-2:]
-        codes = list(codes_histogram.keys())
-        top_code = [codes[i] for i in sorted_index]
         values.sort()
         plt.bar(range(len(values)), values, 1,
                 label=labels[i] + ', weighted 1/0 ratio {:2.2f}'.format(binary_counter['1']/binary_counter['0']))

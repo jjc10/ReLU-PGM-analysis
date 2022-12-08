@@ -91,9 +91,7 @@ def process_results(combined_results):
     return processed_result
 
 
-def build_latex_table(processed_result):
-    table_array = np.zeros((4, 5)).astype(object)
-
+def build_latex_table_code_frequency(processed_result):
     def generat_row(end_str, title):
         row = [processed_result['init_train_'+end_str], processed_result['init_test_'+end_str],
                processed_result['post_train_'+end_str], processed_result['post_test_'+end_str]]
@@ -103,17 +101,25 @@ def build_latex_table(processed_result):
     row_pre = generat_row('code_0_histogram_fraction', 'code prefix')
     row_suf = generat_row('code_1_histogram_fraction', 'code suffix')
     row_code = generat_row('code_histogram_fraction', 'full code')
-    table_1 = Texttable()
-    table_1.set_cols_align(["l", "c", "c", "c", "c"])
+    rows = [["f", "init", "", "post", ""],
+            ['x', 'train', 'test', 'train', 'test'],
+            row_pre, row_suf, row_code]
 
-    table_1.add_rows([["f", "init", "", "post", ""],
-                     ['x', 'train', 'test', 'train', 'test'],
-                     row_pre, row_suf, row_code])
+    build_latex_table(rows, "Fraction of visited codes", "table:vis_code")
+
+
+def build_latex_table(rows, caption, label):
+
+    table_1 = Texttable()
+    col_aligns = ['c' for _ in range(len(rows[0])-1)]
+    table_1.set_cols_align(["l"]+col_aligns)
+
+    table_1.add_rows(rows)
 
     print(table_1.draw())
     print('\nLatextable Output:')
     print(latextable.draw_latex(
-        table_1, caption="Fraction of visited codes", label="table:vis_code"))
+        table_1, caption=caption, label=label))
 
 
 def compute_suffix_per_prefix(full_code_histogram):
@@ -140,6 +146,68 @@ def get_suffix_per_prefix(result_dict):
     return suffix_per_prefix
 
 
+def build_latex_table_top_codes(result_dict):
+    NUM_TOP_CODES = 5
+    prefix = 'code_0_histogram'
+    suffix = 'code_1_histogram'
+    full = 'code_histogram'
+    codes_histogram_keys = ['post_train_'+prefix,
+                            'post_test_'+prefix,
+                            'post_train_'+suffix,
+                            'post_test_'+suffix,
+                            'post_train_'+full,
+                            'post_test_'+full]
+
+    table_entry_dict = {}
+    for codes_histogram_key in codes_histogram_keys:
+        codes_histogram = result_dict[codes_histogram_key]
+        binary_counter = {'0': 0, '1': 0}
+        for key, value in codes_histogram.items():
+            for c in key:
+                if c in binary_counter:
+                    binary_counter[c] += value
+
+        ratio_1_0 = binary_counter['1']/binary_counter['0']
+        frequency = list(codes_histogram.values())
+        sorted_index = list(np.argsort(frequency))[-NUM_TOP_CODES:]
+        sorted_index.reverse()  # from biggest to smallest
+        codes = list(codes_histogram.keys())
+        top_codes = [codes[i] for i in sorted_index]
+        mass_of_top_codes = [frequency[i] /
+                             np.sum(frequency) for i in sorted_index]
+        cumulative_mass_of_top_code = list(np.cumsum(mass_of_top_codes))
+        table_entry_dict[codes_histogram_key] = {
+            'top_codes': top_codes, 'cmass_top_code': cumulative_mass_of_top_code, 'mass_top_code': mass_of_top_codes, 'ratio_1_0': ratio_1_0}
+
+    def create_rows(list_table_entries):
+        rows = []
+        for i in range(NUM_TOP_CODES):
+            row = ['i']
+            for table_entry in list_table_entries:
+                code = table_entry['top_codes'][i]
+                m = '${:2.2f}$ \%'.format(
+                    100*table_entry['mass_top_code'][i])
+                cm = '${:2.2f}$ \%'.format(
+                    100*table_entry['cmass_top_code'][i])
+                row = row+[code, m, cm]
+            rows.append(row)
+        return rows
+    full_rows = create_rows(
+        [table_entry_dict['post_train_'+full], table_entry_dict['post_test_'+full]])
+    build_latex_table(full_rows, "Top codes of full code",
+                      label='fig:top_code')
+
+    prefix_rows = create_rows(
+        [table_entry_dict['post_train_'+prefix], table_entry_dict['post_test_'+prefix]])
+    build_latex_table(prefix_rows, "Top codes of prefix",
+                      label='fig:prefix_top_code')
+
+    suffix_rows = create_rows(
+        [table_entry_dict['post_train_'+suffix], table_entry_dict['post_test_'+suffix]])
+    build_latex_table(suffix_rows, "Top codes of suffix",
+                      label='fig:suffix_top_code')
+
+
 def generate_plots_first_trial(result_dict):
     prefix = 'code_0_histogram'
     suffix = 'code_1_histogram'
@@ -163,5 +231,7 @@ def check_results(result_dict, prefix=''):
     combined_results = combine_all_trials(result_dict)
     processed_result = process_results(combined_results)
 
-    build_latex_table(processed_result)
+    build_latex_table_code_frequency(processed_result)
+    build_latex_table_top_codes(result_dict[0])
+
     generate_plots_first_trial(result_dict[0])
