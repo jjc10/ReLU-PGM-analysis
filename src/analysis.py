@@ -1,7 +1,7 @@
 from src.table_helper import build_latex_table
 import numpy as np
 import torch
-from src.plot_util import plot_code_histograms
+from src.plot_util import plot_code_histograms, plot_code_class_density
 
 
 def add_code_histo(histo_dict, key, total, class_per_code_histogram, pred, target):
@@ -224,6 +224,7 @@ def generate_plots_first_trial(result_dict):
                           result_dict['init_test_'+suffix], result_dict['post_test_'+suffix]], labels, 'suffix', 'suffix_')
     plot_code_histograms([result_dict['init_train_'+full], result_dict['post_train_'+full],
                          result_dict['init_test_'+full], result_dict['post_test_'+full]], labels, 'full', 'full_')
+    plot_code_class_density(result_dict)
 
 
 def check_results(result_dict, prefix=''):
