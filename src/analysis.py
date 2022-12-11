@@ -180,7 +180,7 @@ def build_latex_table_top_codes(result_dict):
         for i in range(NUM_TOP_CODES):
             row = [str(i)]
             for table_entry in list_table_entries:
-                code = table_entry['top_codes'][i]
+                code = table_entry['top_codes'][i]+':' # trick to avoid the int casting that removes the zeros
                 m = '${:2.2f}$ \%'.format(
                     100*table_entry['mass_top_code'][i])
                 cm = '${:2.2f}$ \%'.format(
