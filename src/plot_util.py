@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-
+from sklearn.metrics import accuracy_score
 
 def look_at_point(data, targets):
 
@@ -61,32 +61,63 @@ def plot_code_histograms(codes_histograms, labels, prefix_title, prefix_file):
     plt.close()
 
 
-def get_code_class_hist(result_dict, min_code_occupancy=1, max_code_occupancy=10000, true_label=0):
-    key_set = result_dict['post_train_class_histogram'].keys()
-    counts = [0  for i in range(10)]
+def get_code_class_hist(result_dict, min_code_occupancy=1, max_code_occupancy=10000, type='true'):
+    
+        
+    key_set = result_dict.keys()
+    counts = [0 for i in range(10)]
+    accuracies = [[] for i in range(10)]
     for key in key_set:
-        tuple_list = []
-        for t in result_dict['post_train_class_histogram'][key]:
-            tuple_list.append(t[true_label])
+        if type == 'true':
+            tuple_list = [t[0] for t in result_dict[key]]
+        elif type == 'predicted':
+            tuple_list = [t[1] for t in result_dict[key]]
+        
+        
+        a = accuracy_score([t[0] for t in result_dict[key]], [t[1] for t in result_dict[key]])
         if len(tuple_list) >= min_code_occupancy and len(tuple_list) < max_code_occupancy:
             nunique_codes = len(np.unique(tuple_list))
             counts[nunique_codes-1] += 1
-    return counts
+            accuracies[nunique_codes-1].append(a)
+    acc = [100*np.mean(a) for a in accuracies]
+    return counts, acc
 
-def plot_code_class_density(result_dict, sizes = [1, 2, 5, 10, 50], true_label=0):
-    populations = []
-    for i in range(1, len(sizes)):
-        populations.append(get_code_class_hist(result_dict, min_code_occupancy = sizes[i-1], max_code_occupancy = sizes[i]))
-    populations.append(get_code_class_hist(result_dict, min_code_occupancy = 50))
-    populations = np.array(populations)
-    x = np.arange(10) + 1
-    plt.bar(x, populations[0])
-    plt.bar(x, populations[1], bottom=populations[0])
-    plt.bar(x, populations[2], bottom=populations[0]+populations[1])
-    plt.bar(x, populations[3], bottom=populations[0]+populations[1]+populations[2])
-    plt.bar(x, populations[4], bottom=populations[0]+populations[1]+populations[2]+populations[3])
-    plt.xlabel("Number of unique classes per code")
-    plt.ylabel("Frequency")
-    plt.legend(["1", "2-4", "5-9", "10-49", "50+"], title="Num. of instances in code:")
-    plt.xticks(np.arange(0, 11))
-    plt.savefig('figures/' + "classes_per_code.pdf")
+
+def plot_code_class_density(result_dict, prefix_title, prefix_file):
+    def plot(type):
+        if type == 'true':
+            title = 'true_classes_'
+        else:
+            title = 'predicted_'
+        populations = []
+        a = []
+        sizes = [1, 2, 5, 10, 50]
+        for i in range(1, len(sizes)):
+            pop, accs = get_code_class_hist(
+                result_dict, min_code_occupancy=sizes[i-1], max_code_occupancy=sizes[i], type=type)
+            populations.append(pop)
+            a.append(accs)
+        pop, accs = get_code_class_hist(
+            result_dict, min_code_occupancy=50, type=type)
+        a.append(accs)
+        print(a)
+        populations.append(pop)
+        populations = np.array(populations)
+        x = np.arange(10) + 1
+        plt.bar(x, populations[0])
+        plt.bar(x, populations[1], bottom=populations[0])
+        plt.bar(x, populations[2], bottom=populations[0]+populations[1])
+        plt.bar(x, populations[3], bottom=populations[0] +
+                populations[1]+populations[2])
+        plt.bar(x, populations[4], bottom=populations[0] +
+                populations[1]+populations[2]+populations[3])
+        plt.xlabel("Number of unique true classes per code")
+        plt.ylabel("Frequency")
+        plt.title(prefix_title+'Num. of codes ')
+        plt.legend(["10", "11-20", "21-30", "31-40", "50+"],
+                   title="Num. of instances in code:")
+        plt.xticks(np.arange(0, 11))
+        plt.savefig('figures/' + prefix_file + title+"_per_code.pdf")
+        plt.close()
+    plot(type='true')
+    plot(type='predicted')

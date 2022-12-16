@@ -223,7 +223,8 @@ def generate_plots_first_trial(result_dict):
                           result_dict['init_test_'+suffix], result_dict['post_test_'+suffix]], labels, 'suffix', 'suffix_')
     plot_code_histograms([result_dict['init_train_'+full], result_dict['post_train_'+full],
                          result_dict['init_test_'+full], result_dict['post_test_'+full]], labels, 'full', 'full_')
-    plot_code_class_density(result_dict)
+    plot_code_class_density(result_dict['post_train_class_histogram'], 'train', 'train_')
+    plot_code_class_density(result_dict['post_test_class_histogram'], 'test', 'test_')
 
 
 def check_results(result_dict, prefix=''):
@@ -231,7 +232,7 @@ def check_results(result_dict, prefix=''):
     combined_results = combine_all_trials(result_dict)
     processed_result = process_results(combined_results)
 
-    build_latex_table_code_frequency(processed_result)
-    build_latex_table_top_codes(result_dict[0])
+    # build_latex_table_code_frequency(processed_result)
+    # build_latex_table_top_codes(result_dict[0])
 
     generate_plots_first_trial(result_dict[0])
