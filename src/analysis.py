@@ -17,8 +17,8 @@ def iterate_and_collect(loader, network, result_prefix=''):
     network.eval()  # put the model in eval mode
     code_histogram = {}
     class_per_code_histogram = {}
-    code_per_layer_histograms = [{} for _ in range(network.depht)]
-    class_per_layer_histograms = [{} for _ in range(network.depht)]
+    code_per_layer_histograms = [{} for _ in range(network.depth)]
+    class_per_layer_histograms = [{} for _ in range(network.depth)]
     # collect all activated codes by the data in loader
     with torch.no_grad():
         for data, target in loader:

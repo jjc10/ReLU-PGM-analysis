@@ -3,13 +3,13 @@ import torch.nn.functional as F
 
 
 class Net(nn.Module):
-    def __init__(self, input_size, depht, hidden_size):
+    def __init__(self, input_size, depth, hidden_size):
         super(Net, self).__init__()
         self.input_size = input_size
-        self.depht = depht
+        self.depth = depth
         self.first_layer = nn.Linear(self.input_size, hidden_size)
         self.list_layers = []
-        for _ in range(self.depht-1):
+        for _ in range(self.depth-1):
             self.list_layers.append(nn.Linear(hidden_size, hidden_size))
 
         self.last_layer = nn.Linear(hidden_size, 10)
@@ -27,7 +27,7 @@ class Net(nn.Module):
         layer_codes = []
         x = x.view(-1, self.input_size)
         x = self.first_layer(x)
-        layer_codes.append(x > 0)
+        layer_codes.append(x > 0) # check which neurons are positive because the negative ones will be turned off by RELU (set to 0)
         for layer in self.list_layers:
             x = layer(x)
             layer_codes.append(x > 0)
@@ -40,5 +40,5 @@ class Net(nn.Module):
 
 def build_model(input_size, config_dict):
     network = Net(input_size=input_size,
-                  depht=config_dict['depht'], hidden_size=config_dict['hidden_size'])
+                  depth=config_dict['depth'], hidden_size=config_dict['hidden_size'])
     return network
