@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 from src.resnet.custom_relu import CustomReLU
+import numpy as np
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -82,13 +83,14 @@ class BasicBlock(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
+    def __init__(self, block, layers, input_size, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
                  norm_layer=None):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
+        self.input_size = input_size
 
         self.inplanes = 64
         self.dilation = 1
@@ -101,8 +103,7 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        # change to 3 for multiple channels
-        self.conv1 = nn.Conv2d(1, self.inplanes, kernel_size=7, stride=2, padding=3,
+        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = CustomReLU(inplace=True)
@@ -184,25 +185,18 @@ class ResNet(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x, ac1 = self.relu.forward_get_code(x)
+        ac1 = ac1.view(-1, np.prod(ac1[0].shape))
         activation_codes.append(ac1)
         x = self.maxpool(x)
 
-        x, ac21 = self.layer1.get_submodule('0').forward_get_code(x)
-        activation_codes.append(ac21)
-        x, ac22 = self.layer1.get_submodule('1').forward_get_code(x)
-        activation_codes.append(ac22)
-        x, ac31 = self.layer2.get_submodule('0').forward_get_code(x)
-        activation_codes.append(ac31)
-        x, ac32 = self.layer2.get_submodule('1').forward_get_code(x)
-        activation_codes.append(ac32)
-        x, ac41 = self.layer3.get_submodule('0').forward_get_code(x)
-        activation_codes.append(ac41)
-        x, ac42 = self.layer3.get_submodule('1').forward_get_code(x)
-        activation_codes.append(ac42)
-        x, ac51 = self.layer4.get_submodule('0').forward_get_code(x)
-        activation_codes.append(ac51)
-        x, ac52 = self.layer4.get_submodule('1').forward_get_code(x)
-        activation_codes.append(ac52)
+        x, act_layer_1 = self.forward_get_activation_code_for_layer(self.layer1, x)
+        activation_codes.append(act_layer_1)
+        x, act_layer_2 = self.forward_get_activation_code_for_layer(self.layer2, x)
+        activation_codes.append(act_layer_2)
+        x, act_layer_3 = self.forward_get_activation_code_for_layer(self.layer3, x)
+        activation_codes.append(act_layer_3)
+        x, act_layer_4 = self.forward_get_activation_code_for_layer(self.layer4, x)
+        activation_codes.append(act_layer_4)
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
@@ -210,10 +204,19 @@ class ResNet(nn.Module):
         return x, activation_codes
 
     def depth(self):
-        return 1 + 2 + 2 + 2 + 2 # fix hardcoding self.layer1.__len__ * block
+        return 1 + 2 * 2+ 2 * 2 + 2 * 2 + 2 * 2 # fix hardcoding self.layer1.__len__ * block
 
-def _resnet(arch, block, layers, pretrained, progress, **kwargs):
-    model = ResNet(block, layers, **kwargs)
+    def forward_get_activation_code_for_layer(self, layer, x, layer_size = 2):
+        activation_codes = []
+        for i in range(0, layer_size):
+            x, act_codes = layer.get_submodule(str(i)).forward_get_code(x)
+            for j in range(0, len(act_codes)):
+                flattened_codes = act_codes[j].view(-1, np.prod(act_codes[j][0].shape))
+                activation_codes.append(flattened_codes)
+        return x, activation_codes
+
+def _resnet(arch, block, input_size, layers, pretrained, progress, **kwargs):
+    model = ResNet(block, layers, input_size, **kwargs)
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch],
                                               progress=progress)
@@ -221,7 +224,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     return model
 
 
-def resnet18(pretrained=False, progress=True, **kwargs):
+def resnet18(input_size, pretrained=False, progress=True, **kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -229,12 +232,12 @@ def resnet18(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress,
+    return _resnet('resnet18', BasicBlock, input_size, [2, 2, 2, 2], pretrained, progress,
                    **kwargs)
 
 
 
-def resnet34(pretrained=False, progress=True, **kwargs):
+def resnet34(input_size, pretrained=False, progress=True, **kwargs):
     r"""ResNet-34 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -242,7 +245,7 @@ def resnet34(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet34', BasicBlock, [3, 4, 6, 3], pretrained, progress,
+    return _resnet('resnet34', BasicBlock, input_size, [3, 4, 6, 3], pretrained, progress,
                    **kwargs)
 
 
