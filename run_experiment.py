@@ -1,5 +1,6 @@
 import os
 from file_utils import generate_run_id, store_results
+from src.plot_util import look_at_point
 from src.analysis import compile_results
 from src.train import train_model
 from src.model import build_model
@@ -14,8 +15,10 @@ set_randomness(seed=3)
 train_loader, test_loader = get_data(config_dict)
 examples = enumerate(test_loader)
 batch_idx, (example_data, example_targets) = next(examples)
-
-
+print(example_targets)
+# look_at_point(example_data, example_targets)
+# batch_idx, (example_data, example_targets) = next(examples)
+# look_at_point(example_data, example_targets)
 # get dimension of flatten input 1x28x28 -> 784
 input_size = np.prod(example_data[0].shape)
 

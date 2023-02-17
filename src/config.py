@@ -7,14 +7,14 @@ RESULTS_FOLDER = 'result_storage'
 
 def get_config():
 
-    config_dict = {'n_epochs': 3,
+    config_dict = {'n_epochs': 4,
                    'batch_size_train': 64,
                    'batch_size_test': 100,
                    'learning_rate': 0.01,
                    'momentum': 0.9,
-                   'depht': 2,
+                   'depht': 3,
                    'hidden_size': 8,
-                   'trials': 3}
+                   'trials': 2}
 
     return config_dict
 

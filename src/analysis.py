@@ -123,7 +123,7 @@ def compute_suffix_per_prefix(full_code_histogram):
     for full_code, freq in full_code_histogram.items():
         code_chunks = full_code.split('-')
         prefix = code_chunks[0]
-        suffix = code_chunks[1]
+        suffix = code_chunks[-1]
         if prefix in prefix_key_dict:
             prefix_key_dict[prefix][suffix] = freq
         else:
@@ -143,7 +143,7 @@ def get_suffix_per_prefix(result_dict):
 
 
 def build_latex_table_top_codes(result_dict):
-    NUM_TOP_CODES = 5
+    NUM_TOP_CODES = 20
     prefix = 'code_0_histogram'
     suffix = 'code_1_histogram'
     full = 'code_histogram'
@@ -180,7 +180,8 @@ def build_latex_table_top_codes(result_dict):
         for i in range(NUM_TOP_CODES):
             row = [str(i)]
             for table_entry in list_table_entries:
-                code = table_entry['top_codes'][i]+':' # trick to avoid the int casting that removes the zeros
+                # trick to avoid the int casting that removes the zeros
+                code = table_entry['top_codes'][i]+':'
                 m = '${:2.2f}$ \%'.format(
                     100*table_entry['mass_top_code'][i])
                 cm = '${:2.2f}$ \%'.format(
@@ -223,8 +224,10 @@ def generate_plots_first_trial(result_dict):
                           result_dict['init_test_'+suffix], result_dict['post_test_'+suffix]], labels, 'suffix', 'suffix_')
     plot_code_histograms([result_dict['init_train_'+full], result_dict['post_train_'+full],
                          result_dict['init_test_'+full], result_dict['post_test_'+full]], labels, 'full', 'full_')
-    plot_code_class_density(result_dict['post_train_class_histogram'], 'train', 'train_')
-    plot_code_class_density(result_dict['post_test_class_histogram'], 'test', 'test_')
+    plot_code_class_density(
+        result_dict['post_train_class_histogram'], 'train', 'train_')
+    plot_code_class_density(
+        result_dict['post_test_class_histogram'], 'test', 'test_')
 
 
 def check_results(result_dict, prefix=''):
@@ -232,7 +235,29 @@ def check_results(result_dict, prefix=''):
     combined_results = combine_all_trials(result_dict)
     processed_result = process_results(combined_results)
 
-    # build_latex_table_code_frequency(processed_result)
-    # build_latex_table_top_codes(result_dict[0])
+    build_latex_table_code_frequency(processed_result)
+    build_latex_table_top_codes(result_dict[0])
+    codes = ['00111111-10111011-11010110', 
+             '00111011-10111011-11010110',
+             '00111111-10111011-11010010']
+    for code in codes:
+        histo = result_dict[0]['post_train_class_histogram'][code]
 
+        pred = [i[0] for i in histo]
+        target = [i[1] for i in histo]
+        l_pred = []
+        l_target = []
+        print(len(histo))
+        for c in range(10):
+            num_pred = np.where(np.array(pred) == c)[0].shape[0]
+            num_target = np.where(np.array(target) == c)[0].shape[0]
+            l_pred.append(num_pred)
+            l_target.append(num_target)
+        acc = np.mean([pred[i] == target[i] for i in range(len(histo))])
+        # for c_p in range(10):
+        #     for c_t in range(10):
+
+        print(acc)
+        print('target',l_target)
+        print('pred',l_pred)
     generate_plots_first_trial(result_dict[0])
