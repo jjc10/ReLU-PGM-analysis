@@ -133,7 +133,7 @@ class ResNet(nn.Module):
                 if isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
-        self.depth = self.depth()
+        self.depth = self._depth()
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False): # blocks is number of times we repeat the block
         norm_layer = self._norm_layer
@@ -203,8 +203,19 @@ class ResNet(nn.Module):
         x = self.fc(x)
         return x, activation_codes
 
-    def depth(self):
-        return 1 + 2 * 2+ 2 * 2 + 2 * 2 + 2 * 2 # fix hardcoding self.layer1.__len__ * block
+    def _depth(self):
+        flattened_modules = [module for module in self.modules() if not isinstance(module, nn.Sequential)]
+        relu_count = 0
+        for m in flattened_modules:
+            if isinstance(m, BasicBlock): # this should ideally be done recursively with an accumulator
+                flattened_basic_block = [module for module in m.modules() if not isinstance(module, nn.Sequential)]
+                for n in flattened_basic_block:
+                    if isinstance(n, CustomReLU):
+                        relu_count += 1
+            elif isinstance(m, CustomReLU):
+                relu_count += 1
+        return relu_count
+
 
     def forward_get_activation_code_for_layer(self, layer, x, layer_size = 2):
         activation_codes = []
@@ -247,5 +258,3 @@ def resnet34(input_size, pretrained=False, progress=True, **kwargs):
     """
     return _resnet('resnet34', BasicBlock, input_size, [3, 4, 6, 3], pretrained, progress,
                    **kwargs)
-
-
