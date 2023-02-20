@@ -12,7 +12,7 @@ def get_config():
                    'batch_size_test': 100,
                    'learning_rate': 0.01,
                    'momentum': 0.9,
-                   'depht': 3,
+                   'depth': 2,
                    'hidden_size': 8,
                    'trials': 2}
 
