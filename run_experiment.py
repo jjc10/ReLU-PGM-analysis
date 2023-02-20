@@ -8,10 +8,7 @@ from src.data import get_mnist_data
 from src.data import get_imagenet_test_data
 from src.resnet.resnet import resnet18
 import numpy as np
-import torch.utils.data as data_utils
-import torch
 from torchvision import transforms
-from PIL import Image
 
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])
@@ -22,11 +19,6 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     normalize,
 ])
-prison = Image.open("./imagenet/imagenet-sample-images-master/n04005630_prison.JPEG")
-prison_t = transform(prison)
-shark = Image.open("./imagenet/n01484850_great_white_shark.jpeg")
-shark_t = transform(prison)
-shark_t = prison_t[None, :]
 def run_mnist_experiment():
     set_up_paths([FIGURE_FOLDER, RESULTS_FOLDER])
     config_dict = get_config()
@@ -84,4 +76,4 @@ def run_imagenet_experiment(subset = None):
     store_results('results', result_dict, run_path)
     store_results('config', config_dict, run_path)
 
-run_imagenet_experiment(1)
+run_imagenet_experiment(50)

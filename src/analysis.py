@@ -78,9 +78,10 @@ def compile_results(network, test_loader, train_loader, result_prefix):
     return compiled_results
 
 def compile_imagenet_results(network, test_loader, result_prefix):
-    sparsity_per_layer_results = iterate_and_collect_imagenet(
+    sparsity_per_layer_results, neuron_activation_per_layer = iterate_and_collect_imagenet(
         test_loader, network, result_prefix=result_prefix+'test_')
     sparsity_per_layer_dict = {}
+    average_activation_per_neuron = [stat.get_activation_percentage() for stat in neuron_activation_per_layer]
     for sparse_stat in sparsity_per_layer_results:
         sparsity_per_layer_dict[sparse_stat.layer_num] = sparse_stat.average_sparsity
     return sparsity_per_layer_dict
@@ -88,7 +89,8 @@ def compile_imagenet_results(network, test_loader, result_prefix):
 # compute sparsity per layer
 def iterate_and_collect_imagenet(loader, network, result_prefix=''):
     network.eval()  # put the model in eval mode
-    sparsity_per_layer = [AverageSparsityStat(i) for i in range(network.depth)]
+    average_sparsity_per_layer = [AverageSparsityStat(i) for i in range(network.depth)]
+    neuron_activation_per_layer = [NeuronActivationStat(i) for i in range(network.depth)]
     batch_number = 0
     # collect all activated codes by the data in loader
     with torch.no_grad():
@@ -105,15 +107,33 @@ def iterate_and_collect_imagenet(loader, network, result_prefix=''):
             batch_code_numpy = [layer.cpu().detach().numpy()
                                 for layer in batch_code_tensor]
 
-            for b in range(batch_code_numpy[0].shape[0]):
+            for b in range(batch_code_numpy[0].shape[0]): # One sample at a time
                 print(f'Batch number {batch_number}, sample: {b}')
-                code_chunks = [''.join(layer[b, :].astype(int).astype(str))
-                               for layer in batch_code_numpy]
-                for l, code_chunk in enumerate(code_chunks):
-                    average_sparsity_stat = sparsity_per_layer[l]
+                code_chunks_per_layer = []
+                for layer_idx in range(len(batch_code_numpy)):
+                    code_chunks_per_layer.append(batch_code_numpy[layer_idx][b].astype(int))
+                for l, code_chunk in enumerate(code_chunks_per_layer):
+                    average_sparsity_stat = average_sparsity_per_layer[l]
+                    neuron_activation_stat = neuron_activation_per_layer[l]
+                    neuron_activation_stat.add_sample_code(code_chunk)
                     average_sparsity_stat.add_sample(code_chunk)
+    return average_sparsity_per_layer, neuron_activation_per_layer
 
-    return sparsity_per_layer
+class NeuronActivationStat():
+    def __init__(self, layer_num):
+        self.layer_num = layer_num
+        self.accumulator = None
+        self.count = 0
+
+    def add_sample_code(self, sample):
+        self.count += 1
+        if self.accumulator is not None:
+            self.accumulator = self.accumulator + sample
+        else:
+            self.accumulator = np.copy(sample)
+
+    def get_activation_percentage(self):
+        return self.accumulator / self.count * 100
 
 class AverageSparsityStat():
     def __init__(self, layer_num):
@@ -122,7 +142,8 @@ class AverageSparsityStat():
         self.average_sparsity = 0
 
     def add_sample(self, code_chunk):
-        zeros_count = code_chunk.count('0')
+        ones_count = np.count_nonzero(code_chunk)
+        zeros_count = len(code_chunk) - ones_count
         zeros_percentage = zeros_count / len(code_chunk) * 100
         total_sparsity = self.average_sparsity * self.sample_count + zeros_percentage
         self.sample_count += 1
