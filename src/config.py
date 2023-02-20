@@ -18,6 +18,14 @@ def get_config():
 
     return config_dict
 
+def get_pretrained_imagenet_config():
+    config_dict = {
+                   'batch_size_test': 100,
+                   'momentum': 0.9,
+                   'trials': 1
+    }
+
+    return config_dict
 
 def set_up_paths(folders):
     for folder in folders:
