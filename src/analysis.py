@@ -2,6 +2,8 @@ from src.table_helper import build_latex_table
 import numpy as np
 import torch
 from src.plot_util import plot_code_histograms, plot_code_class_density
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 
 def add_code_histo(histo_dict, key, class_per_code_histogram, pred, target):
@@ -12,6 +14,8 @@ def add_code_histo(histo_dict, key, class_per_code_histogram, pred, target):
         histo_dict[key] = 1
         class_per_code_histogram[key] = [(pred, target)]
 
+
+flatten_list = lambda irregular_list:[element for item in irregular_list for element in flatten_list(item)] if type(irregular_list) is list else [irregular_list]
 
 def iterate_and_collect(loader, network, result_prefix=''):
     network.eval()  # put the model in eval mode
@@ -25,14 +29,18 @@ def iterate_and_collect(loader, network, result_prefix=''):
             output, batch_code_tensor = network.forward_get_code(data)
             pred = [int(out.cpu().detach().numpy())
                     for out in output.data.max(1, keepdim=True)[1]]
-            target = target.cpu().detach().numpy()
+            if isinstance(target, torch.Tensor):
+                target = target.cpu().detach().numpy()
+            if isinstance(target, tuple):
+                target = np.asarray(target)
+            batch_code_tensor = flatten_list(batch_code_tensor)
             batch_code_numpy = [layer.cpu().detach().numpy()
                                 for layer in batch_code_tensor]
-            for b in range(batch_code_numpy[0].shape[0]):
+            for b in range(batch_code_numpy[0].shape[0]): # iterate over each sample of batch
                 code_chunks = [''.join(layer[b, :].astype(int).astype(str))
                                for layer in batch_code_numpy]
                 for l, code_chunk in enumerate(code_chunks):
-                    layer_code_histogram = code_per_layer_histograms[l]
+                    layer_code_histogram = code_per_layer_histograms[l] # get dictionary for that layer
                     class_per_layer_histogram = class_per_layer_histograms[l]
                     add_code_histo(layer_code_histogram,
                                    code_chunk, class_per_layer_histogram, pred[b], target[b])
@@ -69,15 +77,64 @@ def compile_results(network, test_loader, train_loader, result_prefix):
     compiled_results[result_prefix+'new_code_test'] = percent_test_unseen_train
     return compiled_results
 
+def compile_imagenet_results(network, test_loader, result_prefix):
+    sparsity_per_layer_results = iterate_and_collect_imagenet(
+        test_loader, network, result_prefix=result_prefix+'test_')
+    sparsity_per_layer_dict = {}
+    for sparse_stat in sparsity_per_layer_results:
+        sparsity_per_layer_dict[sparse_stat.layer_num] = sparse_stat.average_sparsity
+    return sparsity_per_layer_dict
 
+# compute sparsity per layer
+def iterate_and_collect_imagenet(loader, network, result_prefix=''):
+    network.eval()  # put the model in eval mode
+    sparsity_per_layer = [AverageSparsityStat(i) for i in range(network.depth)]
+    batch_number = 0
+    # collect all activated codes by the data in loader
+    with torch.no_grad():
+        for data, target in loader:
+            output, batch_code_tensor = network.forward_get_code(data)
+            batch_number += 1
+            pred = [int(out.cpu().detach().numpy())
+                    for out in output.data.max(1, keepdim=True)[1]]
+            if isinstance(target, torch.Tensor):
+                target = target.cpu().detach().numpy()
+            if isinstance(target, tuple):
+                target = np.asarray(target)
+            batch_code_tensor = flatten_list(batch_code_tensor)
+            batch_code_numpy = [layer.cpu().detach().numpy()
+                                for layer in batch_code_tensor]
+
+            for b in range(batch_code_numpy[0].shape[0]):
+                print(f'Batch number {batch_number}, sample: {b}')
+                code_chunks = [''.join(layer[b, :].astype(int).astype(str))
+                               for layer in batch_code_numpy]
+                for l, code_chunk in enumerate(code_chunks):
+                    average_sparsity_stat = sparsity_per_layer[l]
+                    average_sparsity_stat.add_sample(code_chunk)
+
+    return sparsity_per_layer
+
+class AverageSparsityStat():
+    def __init__(self, layer_num):
+        self.layer_num = layer_num
+        self.sample_count = 0
+        self.average_sparsity = 0
+
+    def add_sample(self, code_chunk):
+        zeros_count = code_chunk.count('0')
+        zeros_percentage = zeros_count / len(code_chunk) * 100
+        total_sparsity = self.average_sparsity * self.sample_count + zeros_percentage
+        self.sample_count += 1
+        self.average_sparsity = total_sparsity / self.sample_count
 def count_fraction_code_visited(code_histogram):
     code_example = list(code_histogram.keys())[0]
 
     dimension = np.sum([len(layer_code)
                         for layer_code in code_example.split('-')])
-    total_number_codes = 2**dimension
+    total_number_codes = 2 ** dimension
     visited_number_codes = len(list(code_histogram.values()))
-    return visited_number_codes/total_number_codes
+    return visited_number_codes / total_number_codes
 
 
 def combine_all_trials(result_dict):
@@ -236,3 +293,20 @@ def check_results(result_dict, prefix=''):
     # build_latex_table_top_codes(result_dict[0])
 
     generate_plots_first_trial(result_dict[0])
+
+def check_resnet_results(result_dict, prefix=''):
+    num_trials = len(result_dict.keys())
+    combined_results = combine_all_trials(result_dict)
+    generate_resnet_sparsity_histo(result_dict[0])
+
+def generate_resnet_sparsity_histo(result_dict):
+    plt.figure(figsize=(15, 10))  # width:20, he
+    plt.xticks(fontsize=25)
+    plt.yticks(fontsize=25)
+    ax = plt.figure().gca()
+    plt.xlabel('Layer number', fontsize=10)
+    plt.ylabel('Percentage of inactive ReLU', fontsize=10)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    plt.bar(range(len(result_dict)), result_dict.values(), align='edge', width=0.5)
+    plt.show()
