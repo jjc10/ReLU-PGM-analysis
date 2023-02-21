@@ -71,9 +71,9 @@ def run_imagenet_experiment(subset = None):
         set_up_paths([run_path_trial])
         network = resnet18(input_size, pretrained=True)
         # look at relu activated in the network by the data before training
-        compiled_results = compile_imagenet_results(network, test_loader, result_prefix='init_')
-        result_dict[trial] = compiled_results
+        average_sparsity, percentage_of_neuron_in_activation_range = compile_imagenet_results(network, test_loader, result_prefix='init_')
+        result_dict[trial] = {'average_sparsity': average_sparsity, 'percentage_of_neuron_in_activation_range': percentage_of_neuron_in_activation_range}
     store_results('results', result_dict, run_path)
     store_results('config', config_dict, run_path)
 
-run_imagenet_experiment(50)
+run_imagenet_experiment(1000)
