@@ -4,6 +4,7 @@ import torch
 from src.plot_util import plot_code_histograms, plot_code_class_density
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+import scipy
 ACTIVATION_RANGES = [(0, 9.99), (10, 19.99), (20, 29.99), (30, 39.99), (40, 49.99), (50, 59.99), (60, 69.99), (70, 79.99), (80, 89.99), (90, 100)]
 def add_code_histo(histo_dict, key, class_per_code_histogram, pred, target):
     if key in histo_dict:
@@ -89,31 +90,37 @@ def compile_imagenet_results(network, test_loader, result_prefix):
         return res
 
 
-    sparsity_per_layer_results, neuron_activation_per_layer = iterate_and_collect_imagenet(
+    sparsity_per_layer_results, neuron_activation_per_layer, hamming_dict = iterate_and_collect_imagenet(
         test_loader, network, result_prefix=result_prefix+'test_')
     sparsity_per_layer_dict = {}
     activations_per_layer_dict = {}
+
     average_activation_per_neuron_layers = [stat.get_activation_percentage() for stat in neuron_activation_per_layer]
     for sparse_stat in sparsity_per_layer_results:
         sparsity_per_layer_dict[sparse_stat.layer_num] = sparse_stat.average_sparsity
 
     for idx, average_activation_per_neuron in enumerate(average_activation_per_neuron_layers):
         activations_per_layer_dict[idx] = get_activation_ranges_number_of_neurons(average_activation_per_neuron)
-    return sparsity_per_layer_dict, activations_per_layer_dict
+    return sparsity_per_layer_dict, activations_per_layer_dict, hamming_dict
 
 # compute sparsity per layer
 def iterate_and_collect_imagenet(loader, network, result_prefix=''):
     network.eval()  # put the model in eval mode
     average_sparsity_per_layer = [AverageSparsityStat(i) for i in range(network.depth)]
     neuron_activation_per_layer = [NeuronActivationStat(i) for i in range(network.depth)]
+    code_chunks_per_layer_per_samples = []
     batch_number = 0
     # collect all activated codes by the data in loader
     with torch.no_grad():
         for data, target in loader:
             output, batch_code_tensor = network.forward_get_code(data)
             batch_number += 1
-            pred = [int(out.cpu().detach().numpy())
-                    for out in output.data.max(1, keepdim=True)[1]]
+            pred = [out.cpu().detach().numpy()
+                    for out in torch.topk(output, 5).indices]
+            print("Preds")
+            print(pred)
+            print("Target")
+            print(target)
             if isinstance(target, torch.Tensor):
                 target = target.cpu().detach().numpy()
             if isinstance(target, tuple):
@@ -127,12 +134,25 @@ def iterate_and_collect_imagenet(loader, network, result_prefix=''):
                 code_chunks_per_layer = []
                 for layer_idx in range(len(batch_code_numpy)):
                     code_chunks_per_layer.append(batch_code_numpy[layer_idx][b].astype(int))
+                code_chunks_per_layer_per_samples.append(code_chunks_per_layer)
                 for l, code_chunk in enumerate(code_chunks_per_layer):
                     average_sparsity_stat = average_sparsity_per_layer[l]
                     neuron_activation_stat = neuron_activation_per_layer[l]
                     neuron_activation_stat.add_sample_code(code_chunk)
                     average_sparsity_stat.add_sample(code_chunk)
-    return average_sparsity_per_layer, neuron_activation_per_layer
+    hamming_dict = {}
+    for i in range(len(code_chunks_per_layer_per_samples)):
+        for j in range(i + 1, len(code_chunks_per_layer_per_samples)):
+            hamming_dist_per_layer = []
+            for l in range(len(code_chunks_per_layer_per_samples[i])):
+                hamming_dist_per_layer.append(compute_hamming_distance(code_chunks_per_layer_per_samples[i][l], code_chunks_per_layer_per_samples[j][l]))
+            hamming_dict[(target[i], target[j])] = hamming_dist_per_layer
+    return average_sparsity_per_layer, neuron_activation_per_layer, hamming_dict
+
+def compute_hamming_distance(code1, code2):
+    xor = np.logical_xor(code1, code2)
+    number_of_diff_bits = np.count_nonzero(xor)
+    return number_of_diff_bits / len(xor)
 
 class NeuronActivationStat():
     def __init__(self, layer_num):
@@ -333,8 +353,51 @@ def check_results(result_dict, prefix=''):
 def check_resnet_results(result_dict, prefix=''):
     num_trials = len(result_dict.keys())
     # combined_results = combine_all_trials(result_dict)
-    generate_resnet_sparsity_histo(result_dict[0]['average_sparsity'])
-    plot_neuron_activation_percentage_histogram(result_dict[0]['percentage_of_neuron_in_activation_range'])
+    # generate_resnet_sparsity_histo(result_dict[0]['average_sparsity'])
+    # plot_neuron_activation_percentage_histogram(result_dict[0]['percentage_of_neuron_in_activation_range'])
+    ham_distance = result_dict[0]['hamming_dict']
+    aggregates = aggregate_hamming_distances_per_class(ham_distance)
+    plot_hamming_dist_histograms(aggregates)
+
+def plot_hamming_dist_histograms(aggregate_distances):
+    ss = aggregate_distances[0]
+    bb = aggregate_distances[1]
+    sb = aggregate_distances[2]
+    for l in range(len(ss[0])):
+        l_ss = [point[l] for point in ss]
+        l_bb = [point[l] for point in bb]
+        l_sb = [point[l] for point in sb]
+        plt.hist(l_ss, label="shark-shark")
+        plt.hist(l_bb, label = 'bird-bird')
+        plt.hist(l_sb, label = 'bird-shark')
+        plt.legend()
+        # significance_ss_sb = scipy.stats.wilcoxon(l_ss, l_sb)[1]
+        # significance_ss_bb = scipy.stats.wilcoxon(l_ss, l_bb)[1]
+        # significance_bb_sb = scipy.stats.wilcoxon(l_bb, l_sb)[1]
+        plt.title(f'Histogram showing hamming distance for layer {l}')
+        # plt.text(0.06, 5, f'p value ss Vs sb {significance_ss_sb}')
+        # plt.text(0.06, 4, f'p value ss Vs bb {significance_ss_bb}')
+        # plt.text(0.06, 3, f'p value bb Vs sb {significance_bb_sb}')
+        plt.show()
+        plt.close()
+
+
+
+def aggregate_hamming_distances_per_class(ham_distance_dict):
+    shark_shark = []
+    shark_bird = []
+    bird_bird = []
+    for k, v in ham_distance_dict.items():
+        is_bird_bird = ("n015" in k[0]) and ("n015" in k[1])
+        is_bird_shark = (("n015" in k[0]) and not ("n015" in k[1])) # or (("n015" in k[1]) and not ("n015" in k[0]))
+        is_shark_shark = not is_bird_shark and not is_bird_bird and not (("n015" in k[1]) and not ("n015" in k[0]))
+        if is_bird_bird:
+            bird_bird.append(v)
+        elif is_shark_shark:
+            shark_shark.append(v)
+        elif is_bird_shark:
+            shark_bird.append(v)
+    return (shark_shark, bird_bird, shark_bird)
 
 def generate_resnet_sparsity_histo(result_dict):
     plt.figure(figsize=(15, 10))  # width:20, he
