@@ -36,9 +36,10 @@ def iterate_and_collect(loader, network, result_prefix=''):
             batch_code_numpy = [layer.cpu().detach().numpy()
                                 for layer in batch_code_tensor]
             for b in range(batch_code_numpy[0].shape[0]): # iterate over each sample of batch
-                code_chunks = [''.join(layer[b, :].astype(int).astype(str))
-                               for layer in batch_code_numpy]
-                for l, code_chunk in enumerate(code_chunks):
+                code_chunks_per_layer = []
+                for layer_idx in range(len(batch_code_numpy)):
+                    code_chunks_per_layer.append(tuple(batch_code_numpy[layer_idx][b].astype(int)))
+                for l, code_chunk in enumerate(code_chunks_per_layer):
                     layer_code_histogram = code_per_layer_histograms[l] # get dictionary for that layer
                     class_per_layer_histogram = class_per_layer_histograms[l]
                     add_code_histo(layer_code_histogram,
@@ -341,7 +342,9 @@ def check_results(result_dict):
 
     build_latex_table_code_frequency(processed_result)
     build_latex_table_top_codes(result_dict[0])
-    
+    build_latex_table_top_codes(result_dict[0])
+    table_entry_dict = compute_top_codes(result_dict[0], NUM_TOP_CODES=5)['post_train_code_histogram']
+    codes = table_entry_dict['top_codes']
     for code in codes:
         histo = result_dict[0]['post_train_class_histogram'][code]
 
