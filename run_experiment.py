@@ -33,6 +33,7 @@ def run_mnist_experiment():
 
     # get dimension of flatten input 1x28x28 -> 784
     input_size = np.prod(example_data[0].shape)
+    config_dict['input_size'] = input_size # keep this in config in case
 
     run_id = generate_run_id()
     run_path = os.path.join(RESULTS_FOLDER, run_id)
@@ -42,7 +43,7 @@ def run_mnist_experiment():
     for trial in range(config_dict['trials']):
         run_path_trial = os.path.join(run_path, str(trial))
         set_up_paths([run_path_trial])
-        network = build_model(input_size, config_dict)
+        network = build_model(config_dict)
         # look at relu activated in the network by the data before training
         init_compiled_results = compile_results(network, test_loader, train_loader, result_prefix='init_')
         train_model(network, train_loader, test_loader, config_dict, run_path_trial)
@@ -74,8 +75,8 @@ def run_imagenet_experiment(subset = None):
         set_up_paths([run_path_trial])
         network = resnet18(input_size, pretrained=True)
         # look at relu activated in the network by the data before training
-        compiled_results = compile_imagenet_results(network, test_loader, result_prefix='init_')
-        result_dict[trial] = compiled_results
+        average_sparsity, percentage_of_neuron_in_activation_range = compile_imagenet_results(network, test_loader, result_prefix='init_')
+        result_dict[trial] = {'average_sparsity': average_sparsity, 'percentage_of_neuron_in_activation_range': percentage_of_neuron_in_activation_range}
     store_results('results', result_dict, run_path)
     store_results('config', config_dict, run_path)
 

@@ -27,7 +27,8 @@ class Net(nn.Module):
         layer_codes = []
         x = x.view(-1, self.input_size)
         x = self.first_layer(x)
-        layer_codes.append(x > 0) # check which neurons are positive because the negative ones will be turned off by RELU (set to 0)
+        # check which neurons are positive because the negative ones will be turned off by RELU (set to 0)
+        layer_codes.append(x > 0)
         for layer in self.list_layers:
             x = layer(x)
             layer_codes.append(x > 0)
@@ -38,7 +39,8 @@ class Net(nn.Module):
         return log_out, layer_codes
 
 
-def build_model(input_size, config_dict):
-    network = Net(input_size=input_size,
+def build_model(config_dict):
+    network = Net(input_size=config_dict['input_size'],
                   depth=config_dict['depth'], hidden_size=config_dict['hidden_size'])
     return network
+

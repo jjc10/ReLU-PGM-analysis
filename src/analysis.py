@@ -4,8 +4,7 @@ import torch
 from src.plot_util import plot_code_histograms, plot_code_class_density
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-
-
+ACTIVATION_RANGES = [(0, 9.99), (10, 19.99), (20, 29.99), (30, 39.99), (40, 49.99), (50, 59.99), (60, 69.99), (70, 79.99), (80, 89.99), (90, 100)]
 def add_code_histo(histo_dict, key, class_per_code_histogram, pred, target):
     if key in histo_dict:
         histo_dict[key] += 1
@@ -78,13 +77,29 @@ def compile_results(network, test_loader, train_loader, result_prefix):
     return compiled_results
 
 def compile_imagenet_results(network, test_loader, result_prefix):
+    def count_values_in_range(range_tuple, array):
+        low = range_tuple[0]
+        high = range_tuple[1]
+        return ((low <= array) & (array <= high)).sum() / len(array) * 100
+
+    def get_activation_ranges_number_of_neurons(activations):
+        res = {}
+        for r in ACTIVATION_RANGES:
+            res[r] = count_values_in_range(r, activations)
+        return res
+
+
     sparsity_per_layer_results, neuron_activation_per_layer = iterate_and_collect_imagenet(
         test_loader, network, result_prefix=result_prefix+'test_')
     sparsity_per_layer_dict = {}
-    average_activation_per_neuron = [stat.get_activation_percentage() for stat in neuron_activation_per_layer]
+    activations_per_layer_dict = {}
+    average_activation_per_neuron_layers = [stat.get_activation_percentage() for stat in neuron_activation_per_layer]
     for sparse_stat in sparsity_per_layer_results:
         sparsity_per_layer_dict[sparse_stat.layer_num] = sparse_stat.average_sparsity
-    return sparsity_per_layer_dict
+
+    for idx, average_activation_per_neuron in enumerate(average_activation_per_neuron_layers):
+        activations_per_layer_dict[idx] = get_activation_ranges_number_of_neurons(average_activation_per_neuron)
+    return sparsity_per_layer_dict, activations_per_layer_dict
 
 # compute sparsity per layer
 def iterate_and_collect_imagenet(loader, network, result_prefix=''):
@@ -219,9 +234,8 @@ def get_suffix_per_prefix(result_dict):
         suffix_per_prefix[prefix] = len(list(suffixes.keys()))
     return suffix_per_prefix
 
-
-def build_latex_table_top_codes(result_dict):
-    NUM_TOP_CODES = 20
+def compute_top_codes(result_dict, NUM_TOP_CODES):
+    table_entry_dict = {}
     prefix = 'code_0_histogram'
     suffix = 'code_1_histogram'
     full = 'code_histogram'
@@ -231,8 +245,6 @@ def build_latex_table_top_codes(result_dict):
                             'post_test_'+suffix,
                             'post_train_'+full,
                             'post_test_'+full]
-
-    table_entry_dict = {}
     for codes_histogram_key in codes_histogram_keys:
         codes_histogram = result_dict[codes_histogram_key]
         binary_counter = {'0': 0, '1': 0}
@@ -252,7 +264,21 @@ def build_latex_table_top_codes(result_dict):
         cumulative_mass_of_top_code = list(np.cumsum(mass_of_top_codes))
         table_entry_dict[codes_histogram_key] = {
             'top_codes': top_codes, 'cmass_top_code': cumulative_mass_of_top_code, 'mass_top_code': mass_of_top_codes, 'ratio_1_0': ratio_1_0}
+    return table_entry_dict
+    
+def build_latex_table_top_codes(result_dict, NUM_TOP_CODES=5):
+    
+    prefix = 'code_0_histogram'
+    suffix = 'code_1_histogram'
+    full = 'code_histogram'
+    codes_histogram_keys = ['post_train_'+prefix,
+                            'post_test_'+prefix,
+                            'post_train_'+suffix,
+                            'post_test_'+suffix,
+                            'post_train_'+full,
+                            'post_test_'+full]
 
+    table_entry_dict = compute_top_codes(result_dict, NUM_TOP_CODES)
     def create_rows(list_table_entries):
         rows = []
         for i in range(NUM_TOP_CODES):
@@ -308,16 +334,14 @@ def generate_plots_first_trial(result_dict):
         result_dict['post_test_class_histogram'], 'test', 'test_')
 
 
-def check_results(result_dict, prefix=''):
-    num_trials = len(result_dict.keys())
+def check_results(result_dict):
+    
     combined_results = combine_all_trials(result_dict)
     processed_result = process_results(combined_results)
 
     build_latex_table_code_frequency(processed_result)
     build_latex_table_top_codes(result_dict[0])
-    codes = ['00111111-10111011-11010110', 
-             '00111011-10111011-11010110',
-             '00111111-10111011-11010010']
+    
     for code in codes:
         histo = result_dict[0]['post_train_class_histogram'][code]
 
@@ -342,8 +366,9 @@ def check_results(result_dict, prefix=''):
 
 def check_resnet_results(result_dict, prefix=''):
     num_trials = len(result_dict.keys())
-    combined_results = combine_all_trials(result_dict)
-    generate_resnet_sparsity_histo(result_dict[0])
+    # combined_results = combine_all_trials(result_dict)
+    generate_resnet_sparsity_histo(result_dict[0]['average_sparsity'])
+    plot_neuron_activation_percentage_histogram(result_dict[0]['percentage_of_neuron_in_activation_range'])
 
 def generate_resnet_sparsity_histo(result_dict):
     plt.figure(figsize=(15, 10))  # width:20, he
@@ -356,3 +381,21 @@ def generate_resnet_sparsity_histo(result_dict):
 
     plt.bar(range(len(result_dict)), result_dict.values(), align='edge', width=0.5)
     plt.show()
+
+def plot_neuron_activation_percentage_histogram(neurons_in_activation_ranges):
+    for layer_idx in range(len(neurons_in_activation_ranges)):
+        layer = neurons_in_activation_ranges[layer_idx]
+        ranges = []
+        frequency = []
+        for k, v in layer.items():
+            ranges.append(f'({k[0]}% - {k[1]}%)')
+            frequency.append(v)
+        indices = np.arange(len(ranges))
+        plt.bar(indices, frequency, color='r')
+        plt.xticks(indices, ranges, rotation='vertical')
+        plt.xlabel("Activation frequence range")
+        plt.ylabel("Percentage of neurons")
+        plt.title(f'Histogram showing percentage of neurons with activation frequency \n falling in denoted range. Layer {layer_idx + 1}')
+        plt.tight_layout()
+        plt.savefig(f'./figures/neuron_activation_stat_layer{layer_idx}')
+        plt.show()
