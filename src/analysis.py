@@ -37,9 +37,10 @@ def iterate_and_collect(loader, network, result_prefix=''):
             batch_code_numpy = [layer.cpu().detach().numpy()
                                 for layer in batch_code_tensor]
             for b in range(batch_code_numpy[0].shape[0]): # iterate over each sample of batch
-                code_chunks = [''.join(layer[b, :].astype(int).astype(str))
-                               for layer in batch_code_numpy]
-                for l, code_chunk in enumerate(code_chunks):
+                code_chunks_per_layer = []
+                for layer_idx in range(len(batch_code_numpy)):
+                    code_chunks_per_layer.append(tuple(batch_code_numpy[layer_idx][b].astype(int)))
+                for l, code_chunk in enumerate(code_chunks_per_layer):
                     layer_code_histogram = code_per_layer_histograms[l] # get dictionary for that layer
                     class_per_layer_histogram = class_per_layer_histograms[l]
                     add_code_histo(layer_code_histogram,
@@ -236,7 +237,7 @@ def compute_suffix_per_prefix(full_code_histogram):
     for full_code, freq in full_code_histogram.items():
         code_chunks = full_code.split('-')
         prefix = code_chunks[0]
-        suffix = code_chunks[1]
+        suffix = code_chunks[-1]
         if prefix in prefix_key_dict:
             prefix_key_dict[prefix][suffix] = freq
         else:
@@ -254,9 +255,8 @@ def get_suffix_per_prefix(result_dict):
         suffix_per_prefix[prefix] = len(list(suffixes.keys()))
     return suffix_per_prefix
 
-
-def build_latex_table_top_codes(result_dict):
-    NUM_TOP_CODES = 5
+def compute_top_codes(result_dict, NUM_TOP_CODES):
+    table_entry_dict = {}
     prefix = 'code_0_histogram'
     suffix = 'code_1_histogram'
     full = 'code_histogram'
@@ -266,8 +266,6 @@ def build_latex_table_top_codes(result_dict):
                             'post_test_'+suffix,
                             'post_train_'+full,
                             'post_test_'+full]
-
-    table_entry_dict = {}
     for codes_histogram_key in codes_histogram_keys:
         codes_histogram = result_dict[codes_histogram_key]
         binary_counter = {'0': 0, '1': 0}
@@ -287,13 +285,28 @@ def build_latex_table_top_codes(result_dict):
         cumulative_mass_of_top_code = list(np.cumsum(mass_of_top_codes))
         table_entry_dict[codes_histogram_key] = {
             'top_codes': top_codes, 'cmass_top_code': cumulative_mass_of_top_code, 'mass_top_code': mass_of_top_codes, 'ratio_1_0': ratio_1_0}
+    return table_entry_dict
+    
+def build_latex_table_top_codes(result_dict, NUM_TOP_CODES=5):
+    
+    prefix = 'code_0_histogram'
+    suffix = 'code_1_histogram'
+    full = 'code_histogram'
+    codes_histogram_keys = ['post_train_'+prefix,
+                            'post_test_'+prefix,
+                            'post_train_'+suffix,
+                            'post_test_'+suffix,
+                            'post_train_'+full,
+                            'post_test_'+full]
 
+    table_entry_dict = compute_top_codes(result_dict, NUM_TOP_CODES)
     def create_rows(list_table_entries):
         rows = []
         for i in range(NUM_TOP_CODES):
             row = [str(i)]
             for table_entry in list_table_entries:
-                code = table_entry['top_codes'][i]+':' # trick to avoid the int casting that removes the zeros
+                # trick to avoid the int casting that removes the zeros
+                code = table_entry['top_codes'][i]+':'
                 m = '${:2.2f}$ \%'.format(
                     100*table_entry['mass_top_code'][i])
                 cm = '${:2.2f}$ \%'.format(
@@ -336,18 +349,42 @@ def generate_plots_first_trial(result_dict):
                           result_dict['init_test_'+suffix], result_dict['post_test_'+suffix]], labels, 'suffix', 'suffix_')
     plot_code_histograms([result_dict['init_train_'+full], result_dict['post_train_'+full],
                          result_dict['init_test_'+full], result_dict['post_test_'+full]], labels, 'full', 'full_')
-    plot_code_class_density(result_dict['post_train_class_histogram'], 'train', 'train_')
-    plot_code_class_density(result_dict['post_test_class_histogram'], 'test', 'test_')
+    plot_code_class_density(
+        result_dict['post_train_class_histogram'], 'train', 'train_')
+    plot_code_class_density(
+        result_dict['post_test_class_histogram'], 'test', 'test_')
 
 
-def check_results(result_dict, prefix=''):
-    num_trials = len(result_dict.keys())
+def check_results(result_dict):
+    
     combined_results = combine_all_trials(result_dict)
     processed_result = process_results(combined_results)
 
-    # build_latex_table_code_frequency(processed_result)
-    # build_latex_table_top_codes(result_dict[0])
+    build_latex_table_code_frequency(processed_result)
+    build_latex_table_top_codes(result_dict[0])
+    build_latex_table_top_codes(result_dict[0])
+    table_entry_dict = compute_top_codes(result_dict[0], NUM_TOP_CODES=5)['post_train_code_histogram']
+    codes = table_entry_dict['top_codes']
+    for code in codes:
+        histo = result_dict[0]['post_train_class_histogram'][code]
 
+        pred = [i[0] for i in histo]
+        target = [i[1] for i in histo]
+        l_pred = []
+        l_target = []
+        print(len(histo))
+        for c in range(10):
+            num_pred = np.where(np.array(pred) == c)[0].shape[0]
+            num_target = np.where(np.array(target) == c)[0].shape[0]
+            l_pred.append(num_pred)
+            l_target.append(num_target)
+        acc = np.mean([pred[i] == target[i] for i in range(len(histo))])
+        # for c_p in range(10):
+        #     for c_t in range(10):
+
+        print(acc)
+        print('target',l_target)
+        print('pred',l_pred)
     generate_plots_first_trial(result_dict[0])
 
 def check_resnet_results(result_dict, prefix=''):

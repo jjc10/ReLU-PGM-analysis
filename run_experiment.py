@@ -10,6 +10,9 @@ from src.resnet.resnet import resnet18
 import numpy as np
 from torchvision import transforms
 
+
+
+
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])
 transform = transforms.Compose([
@@ -30,6 +33,7 @@ def run_mnist_experiment():
 
     # get dimension of flatten input 1x28x28 -> 784
     input_size = np.prod(example_data[0].shape)
+    config_dict['input_size'] = input_size # keep this in config in case
 
     run_id = generate_run_id()
     run_path = os.path.join(RESULTS_FOLDER, run_id)
@@ -39,7 +43,7 @@ def run_mnist_experiment():
     for trial in range(config_dict['trials']):
         run_path_trial = os.path.join(run_path, str(trial))
         set_up_paths([run_path_trial])
-        network = build_model(input_size, config_dict)
+        network = build_model(config_dict)
         # look at relu activated in the network by the data before training
         init_compiled_results = compile_results(network, test_loader, train_loader, result_prefix='init_')
         train_model(network, train_loader, test_loader, config_dict, run_path_trial)
@@ -91,3 +95,6 @@ run_imagenet_experiment(image_list = [
     "n01592084_chickadee.JPEG",
     "n01558993_robin.JPEG"
 ])
+
+#run_mnist_experiment()
+
