@@ -166,9 +166,8 @@ class AverageSparsityStat():
         self.average_sparsity = total_sparsity / self.sample_count
 def count_fraction_code_visited(code_histogram):
     code_example = list(code_histogram.keys())[0]
-
-    dimension = np.sum([len(layer_code)
-                        for layer_code in code_example.split('-')])
+    # TODO: Fix this so the keys of histograms are consistent (all should be tuples)
+    dimension = np.sum([len(layer_code) for layer_code in code_example.split('-')]) if isinstance(code_example, str) else len(code_example)
     total_number_codes = 2 ** dimension
     visited_number_codes = len(list(code_histogram.values()))
     return visited_number_codes / total_number_codes
@@ -251,6 +250,7 @@ def compute_top_codes(result_dict, NUM_TOP_CODES):
         binary_counter = {'0': 0, '1': 0}
         for key, value in codes_histogram.items():
             for c in key:
+                c = str(c)
                 if c in binary_counter:
                     binary_counter[c] += value
 
