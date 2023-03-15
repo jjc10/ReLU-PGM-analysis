@@ -8,7 +8,7 @@ class Net(nn.Module):
         self.input_size = input_size
         self.depth = depth
         self.first_layer = nn.Linear(self.input_size, hidden_size)
-        self.list_layers = []
+        self.list_layers = nn.ModuleList()
         for _ in range(self.depth-1):
             self.list_layers.append(nn.Linear(hidden_size, hidden_size))
 
