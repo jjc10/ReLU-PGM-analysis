@@ -27,7 +27,7 @@ def invert_dict(in_dict):
 
 
 def plot_code_histograms(codes_histograms, labels, prefix_title, prefix_file):
-    binary_counter = {'0': 0, '1': 0}
+    binary_counter = {0: 0, 1: 0}
 
     for i, codes_histogram in enumerate(codes_histograms):
         # count the fraction of 1 and 0
@@ -40,7 +40,7 @@ def plot_code_histograms(codes_histograms, labels, prefix_title, prefix_file):
         num_samples = np.sum(values)
         values = [v/num_samples for v in values]
         plt.bar(range(len(values)), values, 1,
-                label=labels[i] + ', weighted 1/0 ratio {:2.2f}'.format(binary_counter['1']/binary_counter['0']))
+                label=labels[i] + ', weighted 1/0 ratio {:2.2f}'.format(binary_counter[1]/binary_counter[0]))
     plt.legend()
     plt.xlabel('codes')
     plt.xlabel('frequency')

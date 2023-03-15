@@ -4,8 +4,10 @@ import torch
 from src.plot_util import plot_code_histograms, plot_code_class_density
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-import scipy
+from src.config import get_config
+
 ACTIVATION_RANGES = [(0, 9.99), (10, 19.99), (20, 29.99), (30, 39.99), (40, 49.99), (50, 59.99), (60, 69.99), (70, 79.99), (80, 89.99), (90, 100)]
+
 def add_code_histo(histo_dict, key, class_per_code_histogram, pred, target):
     if key in histo_dict:
         histo_dict[key] += 1
@@ -45,7 +47,8 @@ def iterate_and_collect(loader, network, result_prefix=''):
                     class_per_layer_histogram = class_per_layer_histograms[l]
                     add_code_histo(layer_code_histogram,
                                    code_chunk, class_per_layer_histogram, pred[b], target[b])
-                code = '-'.join(code_chunks)
+                code = [i for sub in code_chunks_per_layer for i in sub]
+                code = tuple(code)
                 add_code_histo(code_histogram,  code,
                                class_per_code_histogram, pred[b], target[b])
 
@@ -186,9 +189,8 @@ class AverageSparsityStat():
         self.average_sparsity = total_sparsity / self.sample_count
 def count_fraction_code_visited(code_histogram):
     code_example = list(code_histogram.keys())[0]
-
-    dimension = np.sum([len(layer_code)
-                        for layer_code in code_example.split('-')])
+    # TODO: Fix this so the keys of histograms are consistent (all should be tuples)
+    dimension = np.sum([len(layer_code) for layer_code in code_example.split('-')]) if isinstance(code_example, str) else len(code_example)
     total_number_codes = 2 ** dimension
     visited_number_codes = len(list(code_histogram.values()))
     return visited_number_codes / total_number_codes
@@ -234,10 +236,10 @@ def build_latex_table_code_frequency(processed_result):
 
 def compute_suffix_per_prefix(full_code_histogram):
     prefix_key_dict = {}
+    layer_size = get_config()['hidden_size']
     for full_code, freq in full_code_histogram.items():
-        code_chunks = full_code.split('-')
-        prefix = code_chunks[0]
-        suffix = code_chunks[-1]
+        prefix = full_code[0 : layer_size]
+        suffix = full_code[layer_size : len(full_code)]
         if prefix in prefix_key_dict:
             prefix_key_dict[prefix][suffix] = freq
         else:
@@ -271,6 +273,7 @@ def compute_top_codes(result_dict, NUM_TOP_CODES):
         binary_counter = {'0': 0, '1': 0}
         for key, value in codes_histogram.items():
             for c in key:
+                c = str(c)
                 if c in binary_counter:
                     binary_counter[c] += value
 
@@ -306,7 +309,7 @@ def build_latex_table_top_codes(result_dict, NUM_TOP_CODES=5):
             row = [str(i)]
             for table_entry in list_table_entries:
                 # trick to avoid the int casting that removes the zeros
-                code = table_entry['top_codes'][i]+':'
+                code = str(table_entry['top_codes'][i])+':'
                 m = '${:2.2f}$ \%'.format(
                     100*table_entry['mass_top_code'][i])
                 cm = '${:2.2f}$ \%'.format(
