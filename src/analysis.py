@@ -4,6 +4,7 @@ import torch
 from src.plot_util import plot_code_histograms, plot_code_class_density
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from src.config import get_config
 ACTIVATION_RANGES = [(0, 9.99), (10, 19.99), (20, 29.99), (30, 39.99), (40, 49.99), (50, 59.99), (60, 69.99), (70, 79.99), (80, 89.99), (90, 100)]
 def add_code_histo(histo_dict, key, class_per_code_histogram, pred, target):
     if key in histo_dict:
@@ -44,7 +45,8 @@ def iterate_and_collect(loader, network, result_prefix=''):
                     class_per_layer_histogram = class_per_layer_histograms[l]
                     add_code_histo(layer_code_histogram,
                                    code_chunk, class_per_layer_histogram, pred[b], target[b])
-                code = '-'.join(code_chunks)
+                code = [i for sub in code_chunks_per_layer for i in sub]
+                code = tuple(code)
                 add_code_histo(code_histogram,  code,
                                class_per_code_histogram, pred[b], target[b])
 
@@ -213,10 +215,10 @@ def build_latex_table_code_frequency(processed_result):
 
 def compute_suffix_per_prefix(full_code_histogram):
     prefix_key_dict = {}
+    layer_size = get_config()['hidden_size']
     for full_code, freq in full_code_histogram.items():
-        code_chunks = full_code.split('-')
-        prefix = code_chunks[0]
-        suffix = code_chunks[-1]
+        prefix = full_code[0 : layer_size]
+        suffix = full_code[layer_size : len(full_code)]
         if prefix in prefix_key_dict:
             prefix_key_dict[prefix][suffix] = freq
         else:
@@ -286,7 +288,7 @@ def build_latex_table_top_codes(result_dict, NUM_TOP_CODES=5):
             row = [str(i)]
             for table_entry in list_table_entries:
                 # trick to avoid the int casting that removes the zeros
-                code = table_entry['top_codes'][i]+':'
+                code = str(table_entry['top_codes'][i])+':'
                 m = '${:2.2f}$ \%'.format(
                     100*table_entry['mass_top_code'][i])
                 cm = '${:2.2f}$ \%'.format(

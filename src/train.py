@@ -43,10 +43,6 @@ def train_model(network, train_loader, test_loader, config_dict, run_path):
             train_counter.append(
                 (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
 
-        torch.save(network.state_dict(),
-                   os.path.join(run_path, 'model.pth'))
-        torch.save(optimizer.state_dict(),
-                   os.path.join(run_path, 'optimizer.pth'))
         total_loss = np.mean(train_losses)
         total_gradient = np.mean(gradient)
         writer.add_scalar('Loss/train', total_loss, epoch)
@@ -72,3 +68,7 @@ def train_model(network, train_loader, test_loader, config_dict, run_path):
     for epoch in range(1, config_dict['n_epochs'] + 1):
         train(epoch)
         test()
+    torch.save(network.state_dict(),
+               os.path.join(run_path, 'model.pth'))
+    torch.save(optimizer.state_dict(),
+               os.path.join(run_path, 'optimizer.pth'))
