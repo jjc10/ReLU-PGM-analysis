@@ -32,7 +32,7 @@ def get_mnist_data(config_dict):
     return train_loader, test_loader
 
 class ImageNetDataset(torch.utils.data.Dataset):
-    def __init__(self, directory, transform = None, subset = None):
+    def __init__(self, directory, transform = None, subset = None, image_list = []):
         self.directory = directory
         if transform:
             self.transform = transform
@@ -41,16 +41,24 @@ class ImageNetDataset(torch.utils.data.Dataset):
                                              std=[0.229, 0.224, 0.225])
             self.transform = transforms.Compose([
                 torchvision.transforms.Grayscale(num_output_channels=3), # there are a few greyscale images
-                transforms.RandomResizedCrop((500, 300)),
+                transforms.Resize((300, 500)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 normalize,
             ])
-        self.labels = glob.glob1(self.directory, "*.JPEG")
-        self.labels = list(map(lambda n: n.replace('.JPEG', ''), self.labels))
+        self.image_list = image_list
+        if len(self.image_list) != 0:
+            self.labels = self.image_list
+            self.labels = list(map(lambda n: n.replace('.JPEG', ''), self.labels))
+        else:
+            self.labels = glob.glob1(self.directory, "*.JPEG")
+            self.labels = list(map(lambda n: n.replace('.JPEG', ''), self.labels))
         self.subset = subset
 
+
     def __len__(self):
+        if len(self.image_list) != 0:
+            return len(self.image_list)
         return self.subset if self.subset else len(self.labels)
     def __getitem__(self, idx):
         image = Image.open(f'{self.directory}/{self.labels[idx]}.JPEG')
@@ -60,6 +68,6 @@ class ImageNetDataset(torch.utils.data.Dataset):
 def get_imagenet_data(config_dict, directory):
     pass
 
-def get_imagenet_test_data(config_dict, directory, subset = None):
-    dataset = ImageNetDataset(directory, subset = subset)
+def get_imagenet_test_data(config_dict, directory, subset = None, image_list = []):
+    dataset = ImageNetDataset(directory, subset = subset, image_list=image_list)
     return torch.utils.data.DataLoader(dataset, batch_size=config_dict['batch_size_test'], shuffle=True)

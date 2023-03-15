@@ -54,11 +54,11 @@ def run_mnist_experiment():
     store_results('results', result_dict, run_path)
     store_results('config', config_dict, run_path)
 
-def run_imagenet_experiment(subset = None):
+def run_imagenet_experiment(subset = None, image_list = []):
     set_up_paths([FIGURE_FOLDER, RESULTS_FOLDER])
     config_dict = get_pretrained_imagenet_config()
     set_randomness(seed=3)
-    test_loader = get_imagenet_test_data(config_dict, './imagenet/imagenet-sample-images-master', subset = subset)
+    test_loader = get_imagenet_test_data(config_dict, './imagenet/imagenet-sample-images-master', subset = subset, image_list = image_list)
     examples = enumerate(test_loader)
     batch_idx, (example_data, example_targets) = next(examples)
 
@@ -75,9 +75,26 @@ def run_imagenet_experiment(subset = None):
         set_up_paths([run_path_trial])
         network = resnet18(input_size, pretrained=True)
         # look at relu activated in the network by the data before training
-        average_sparsity, percentage_of_neuron_in_activation_range = compile_imagenet_results(network, test_loader, result_prefix='init_')
-        result_dict[trial] = {'average_sparsity': average_sparsity, 'percentage_of_neuron_in_activation_range': percentage_of_neuron_in_activation_range}
+        average_sparsity, percentage_of_neuron_in_activation_range, hamming_dict = compile_imagenet_results(network, test_loader, result_prefix='init_')
+        result_dict[trial] = {
+            'average_sparsity': average_sparsity,
+            'percentage_of_neuron_in_activation_range': percentage_of_neuron_in_activation_range,
+            'hamming_dict': hamming_dict
+        }
     store_results('results', result_dict, run_path)
     store_results('config', config_dict, run_path)
 
-run_mnist_experiment()
+run_imagenet_experiment(image_list = [
+    "Great White 2.JPEG",
+    "shark_3.JPEG",
+    "White_shark_1.JPEG",
+    "n01491361_tiger_shark.JPEG",
+    "n01531178_goldfinch.JPEG",
+    "n01532829_house_finch.JPEG",
+    "n01582220_magpie.JPEG",
+    "n01592084_chickadee.JPEG",
+    "n01558993_robin.JPEG"
+])
+
+#run_mnist_experiment()
+
