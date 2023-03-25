@@ -1,16 +1,11 @@
 import numpy as np
 from collections import OrderedDict
-def perform_mnist_analysis(results):
+def get_mnist_code_frequency(results):
     post_train = results["post_train_0"]
     total_num_results = len(post_train)
     code_occurrences = count_code_occurrences(post_train)
     code_freqs = count_code_percentage(code_occurrences, total_num_results)
-    for k, v in code_freqs.items():
-        print(f"{k} occurring {v}%")
-        if v < 1:
-            break
-
-
+    return code_freqs
 
 # Returns a dictionary of code --> number_of_occurrences
 # If a layer is passed, it counts the analysis on that single layer.
