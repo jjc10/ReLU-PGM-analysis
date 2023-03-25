@@ -18,13 +18,13 @@ def store_results(file_name, data_to_store, run_path):
         pk.dump(data_to_store, file)
 
 
-def load_most_recent_results(path):
-    recent_run_path = sorted(os.listdir(path))[-1]
-    file_path = os.path.join(path, recent_run_path, 'results.pk')
+def load_most_recent_results(results_folder, path):
+    most_recent_experiment_path = sorted(os.listdir(results_folder))[-1]
+    path = f"{most_recent_experiment_path}/{path}"
+    file_path = os.path.join(results_folder, path)
     with open(file_path, 'rb') as file:
         data = pk.load(file)
     return data
-
 
 def load_most_recent_model(path):
     recent_run_path = sorted(os.listdir(path))[-1]

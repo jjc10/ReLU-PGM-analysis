@@ -19,67 +19,10 @@ def add_code_histo(histo_dict, key, class_per_code_histogram, pred, target):
 
 flatten_list = lambda irregular_list:[element for item in irregular_list for element in flatten_list(item)] if type(irregular_list) is list else [irregular_list]
 
-def iterate_and_collect(loader, network, result_prefix=''):
-    network.eval()  # put the model in eval mode
-    code_histogram = {}
-    class_per_code_histogram = {}
-    code_per_layer_histograms = [{} for _ in range(network.depth)]
-    class_per_layer_histograms = [{} for _ in range(network.depth)]
-    # collect all activated codes by the data in loader
-    with torch.no_grad():
-        for data, target in loader:
-            output, batch_code_tensor = network.forward_get_code(data)
-            pred = [int(out.cpu().detach().numpy())
-                    for out in output.data.max(1, keepdim=True)[1]]
-            if isinstance(target, torch.Tensor):
-                target = target.cpu().detach().numpy()
-            if isinstance(target, tuple):
-                target = np.asarray(target)
-            batch_code_tensor = flatten_list(batch_code_tensor)
-            batch_code_numpy = [layer.cpu().detach().numpy()
-                                for layer in batch_code_tensor]
-            for b in range(batch_code_numpy[0].shape[0]): # iterate over each sample of batch
-                code_chunks_per_layer = []
-                for layer_idx in range(len(batch_code_numpy)):
-                    code_chunks_per_layer.append(tuple(batch_code_numpy[layer_idx][b].astype(int)))
-                for l, code_chunk in enumerate(code_chunks_per_layer):
-                    layer_code_histogram = code_per_layer_histograms[l] # get dictionary for that layer
-                    class_per_layer_histogram = class_per_layer_histograms[l]
-                    add_code_histo(layer_code_histogram,
-                                   code_chunk, class_per_layer_histogram, pred[b], target[b])
-                code = [i for sub in code_chunks_per_layer for i in sub]
-                code = tuple(code)
-                add_code_histo(code_histogram,  code,
-                               class_per_code_histogram, pred[b], target[b])
-
-    results = {result_prefix+'code_histogram': code_histogram}
-    results[result_prefix+'class_histogram'] = class_per_code_histogram
-    for l, code_per_layer_histogram in enumerate(code_per_layer_histograms):
-        results[result_prefix+'code_' +
-                str(l)+'_histogram'] = code_per_layer_histogram
-
-        results[result_prefix+'class_' +
-                str(l)+'_histogram'] = class_per_layer_histograms[l]
-    return results
 
 
-def compile_results(network, test_loader, train_loader, result_prefix):
 
-    # iterate through the test set and check which codes are being activated
-    test_results = iterate_and_collect(
-        test_loader, network, result_prefix=result_prefix+'test_')
-    train_results = iterate_and_collect(
-        train_loader, network, result_prefix=result_prefix+'train_')
 
-    percent_test_unseen_train = 0
-    for code, val in test_results[result_prefix+'test_code_histogram'].items():
-        if code not in train_results[result_prefix+'train_code_histogram']:
-            percent_test_unseen_train += val
-
-    compiled_results = test_results
-    compiled_results.update(train_results)
-    compiled_results[result_prefix+'new_code_test'] = percent_test_unseen_train
-    return compiled_results
 
 def compile_imagenet_results(network, test_loader, result_prefix):
     def count_values_in_range(range_tuple, array):
@@ -358,7 +301,7 @@ def generate_plots_first_trial(result_dict):
         result_dict['post_test_class_histogram'], 'test', 'test_')
 
 
-def check_results(result_dict):
+def perform_analysis(results):
     
     combined_results = combine_all_trials(result_dict)
     processed_result = process_results(combined_results)
