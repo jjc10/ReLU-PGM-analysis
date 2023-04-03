@@ -68,14 +68,47 @@ class LinearMixture(torch.nn.Module):
             normalized_models.append((t[0], t[1] / total_weight))
         return normalized_models
 
-    def forward(self, x):
+    def forward(self, x, mode='Mixture'): # Entropy, Argmax, Mixture
         x = x.view(-1, self.input_size)
         out = torch.zeros((x.shape[0], self.output_size)) # batch size x output
-        for t in self.normalized_models:
-            model_output = t[0](x)
-            weighted_output = model_output * t[1]
-            out = out + weighted_output
-        return out
+        if mode == 'Mixture':
+            for t in self.normalized_models:
+                model_output = t[0](x)
+                weighted_output = model_output * t[1]
+                out = out + weighted_output
+            return out
+        elif mode == 'Argmax':
+            num_mixture = len(self.normalized_models)
+            pred = torch.zeros((x.shape[0], num_mixture, self.output_size)) # batch size x output
+            for i, t in enumerate(self.normalized_models):
+                model_output = t[0](x)
+
+                pred[:,i, :] = model_output
+            out = torch.max(pred, dim=1)[0]
+            return out
+        elif mode == 'Weighted_Argmax':
+            num_mixture = len(self.normalized_models)
+            pred = torch.zeros((x.shape[0], num_mixture, self.output_size)) # batch size x output
+            for i, t in enumerate(self.normalized_models):
+                model_output = t[0](x)
+                weighted_output = model_output * t[1]
+                pred[:,i, :] = weighted_output
+            out = torch.max(pred, dim=1)[0]
+            return out
+
+        elif mode == 'Entropy':
+            num_mixture = len(self.normalized_models)
+            pred = torch.zeros((x.shape[0], num_mixture, self.output_size)) # batch size x output
+            for i, t in enumerate(self.normalized_models):
+                model_output = t[0](x)
+
+                pred[:,i, :] = model_output
+            out = torch.max(pred, dim=1)[0]
+            p = torch.nn.functional.softmax(pred, dim=2) 
+            H = torch.sum(torch.special.entr(p), axis=2) # dim batch X num_model
+            min_entropy_model = torch.argmin(H, axis=1) # find out, which model has minimum entropy
+            out = pred[range(x.shape[0]),min_entropy_model,:] # select the pred of the model
+            return out
 
 
 def tuple_code_to_list(full_code):
@@ -90,16 +123,18 @@ def tuple_code_to_list(full_code):
         list_codes_per_layer.append(list(layer_code))
     return list_codes_per_layer
 
-def create_mixture(model, num_top_codes, code_freqs):
+def create_mixture(model, num_top_codes, code_freqs): 
     num_code = 0
     top_code_and_weights = []
     for k in code_freqs.keys():
-        split_per_layer = tuple_code_to_list(k)
-        top_code_and_weights.append((split_per_layer, code_freqs[k]))
-        num_code += 1
         if num_code == num_top_codes:
             break
+        split_per_layer = tuple_code_to_list(k)
+        top_code_and_weights.append((split_per_layer, code_freqs[k]))
+       
+        num_code += 1
     mixture = []
+    
     for t in top_code_and_weights:
         # create model from each code and add it to the mixture
         mixture.append((NN_to_logreg(model, t[0]), t[1]))
@@ -126,16 +161,22 @@ def compute_accuracy_of_linearized_model(linear_classifier, model):
         correct_preds_count += correct_preds.sum()
 
 
-def compute_accuracy_of_mixture(mixture):
-    train_loader, test_loader = get_mnist_data(get_config())
+def compute_accuracy_of_mixture_of_loader(loader, mixture, mode):
     correct_preds_count = 0
-    for X, y in test_loader:
+    list_outputs = []
+    for X, y in loader:
         X_double = X.double()
-        output = mixture(X_double)
-
+        output = mixture(X_double, mode=mode)
+        list_outputs.append(0)
         pred = [int(out.cpu().detach().numpy())
                 for out in output.data.max(1, keepdim=True)[1]]
         correct_preds = (pred == y.detach().numpy())
         correct_preds_count += correct_preds.sum()
-    accuracy = 100. * correct_preds_count / len(test_loader.dataset)
-    print(f"Accuracy of mixture is {accuracy}")
+    accuracy = 100. * correct_preds_count / len(loader.dataset)
+    return accuracy
+def compute_accuracy_of_mixture(mixture, mode):# Entropy, Argmax, Mixture)
+    train_loader, test_loader = get_mnist_data(get_config())
+    test_accuracy = compute_accuracy_of_mixture_of_loader(test_loader, mixture, mode)
+    train_accuracy = compute_accuracy_of_mixture_of_loader(train_loader, mixture, mode)
+    print(f"Test Accuracy of mixture with mode {mode} is {test_accuracy}")
+    return test_accuracy, train_accuracy
