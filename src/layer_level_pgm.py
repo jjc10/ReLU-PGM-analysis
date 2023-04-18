@@ -109,7 +109,7 @@ def hyperparameter_tune_conditional_mixture(model, bn, number_of_codes_per_layer
     for number_of_codes_per_layer in number_of_codes_per_layer_list:
         prob_tree = build_prob_tree_for_mixture(number_of_codes_per_layer, bn)
         normalize_prob_tree(prob_tree)
-        weighted_linear_models = extract_weighted_linear_models_from_prob_tree(prob_tree)
+        weighted_linear_models = extract_weighted_linear_models_from_prob_tree(prob_tree, [8, 8])
         conditional_mixture = create_conditional_mixture(model, weighted_linear_models)
 
         acc = compute_accuracy_of_mixture(conditional_mixture)
