@@ -1,12 +1,13 @@
-from file_utils import load_most_recent_results, load_most_recent_model
-from src.config import RESULTS_FOLDER, get_config
+from src.file_utils import load_most_recent_results, load_most_recent_model
+from src.config import RESULTS_FOLDER, get_config, get_cifar_config
 import numpy as np
 import torch
 import torch.nn.functional as F
-from src.data import get_mnist_data
+from src.data import get_mnist_data, get_cifar_data
 import networkx as nx
 from queue import Queue
 from src.utils import convert_int_to_boolean_code
+from enum import Enum
 
 NODE = 'node'
 
@@ -58,6 +59,12 @@ def NN_to_logreg(model, list_codes_per_layer):
         combined_weight = np.matmul(combined_weight, weights[i])
     return LinearSoftMax(model.input_size, combined_weight, combined_bias)
 
+class LinearModelMode(Enum):
+    MIXTURE = 1
+    ARGMAX = 2
+    WEIGHTED_ARGMAX = 3
+    ENTROPY = 4
+
 class LinearMixture(torch.nn.Module):
     def __init__(self, linearized_models_with_weights, input_size, output_size = 10):
         super(LinearMixture, self).__init__()
@@ -76,16 +83,16 @@ class LinearMixture(torch.nn.Module):
             normalized_models.append((t[0], t[1] / total_weight))
         return normalized_models
 
-    def forward(self, x, mode='Mixture'): # Entropy, Argmax, Mixture
+    def forward(self, x, mode = LinearModelMode.MIXTURE): # Entropy, Argmax, Mixture
         x = x.view(-1, self.input_size)
         out = torch.zeros((x.shape[0], self.output_size)) # batch size x output
-        if mode == 'Mixture':
+        if mode == LinearModelMode.MIXTURE:
             for t in self.normalized_models:
                 model_output = t[0](x)
                 weighted_output = model_output * t[1]
                 out = out + weighted_output
             return out
-        elif mode == 'Argmax':
+        elif mode == LinearModelMode.ARGMAX:
             num_mixture = len(self.normalized_models)
             pred = torch.zeros((x.shape[0], num_mixture, self.output_size)) # batch size x output
             for i, t in enumerate(self.normalized_models):
@@ -94,7 +101,7 @@ class LinearMixture(torch.nn.Module):
                 pred[:,i, :] = model_output
             out = torch.max(pred, dim=1)[0]
             return out
-        elif mode == 'Weighted_Argmax':
+        elif mode == LinearModelMode.WEIGHTED_ARGMAX:
             num_mixture = len(self.normalized_models)
             pred = torch.zeros((x.shape[0], num_mixture, self.output_size)) # batch size x output
             for i, t in enumerate(self.normalized_models):
@@ -104,7 +111,7 @@ class LinearMixture(torch.nn.Module):
             out = torch.max(pred, dim=1)[0]
             return out
 
-        elif mode == 'Entropy':
+        elif mode == LinearModelMode.ENTROPY:
             num_mixture = len(self.normalized_models)
             pred = torch.zeros((x.shape[0], num_mixture, self.output_size)) # batch size x output
             for i, t in enumerate(self.normalized_models):
@@ -150,10 +157,11 @@ def create_mixture(model, num_top_codes, code_freqs):
 
 def create_conditional_mixture(model, weighted_codes):
     mixture = []
+    number_of_classes = model.last_layer.out_features
     for t in weighted_codes:
         # create model from each code and add it to the mixture
         mixture.append((NN_to_logreg(model, t[0]), t[1]))
-    mixture = LinearMixture(mixture, model.input_size, 10)
+    mixture = LinearMixture(mixture, model.input_size, number_of_classes)
     return mixture
 
 def get_node_key(node_val, ancestor_key):
@@ -290,9 +298,11 @@ def compute_accuracy_of_mixture_of_loader(loader, mixture, mode):
         correct_preds_count += correct_preds.sum()
     accuracy = 100. * correct_preds_count / len(loader.dataset)
     return accuracy
-def compute_accuracy_of_mixture(mixture, mode='Mixture'):# Entropy, Argmax, Mixture)
-    train_loader, test_loader = get_mnist_data(get_config())
+def compute_accuracy_of_mixture(mixture, mode=LinearModelMode.MIXTURE, train=False):# Entropy, Argmax, Mixture)
+    train_loader, test_loader = get_cifar_data(get_cifar_config(), [0, 1])
     test_accuracy = compute_accuracy_of_mixture_of_loader(test_loader, mixture, mode)
-    train_accuracy = compute_accuracy_of_mixture_of_loader(train_loader, mixture, mode)
+    train_accuracy = None
+    if train:
+        train_accuracy = compute_accuracy_of_mixture_of_loader(train_loader, mixture, mode)
     print(f"Test Accuracy of mixture with mode {mode} is {test_accuracy}")
     return test_accuracy, train_accuracy
