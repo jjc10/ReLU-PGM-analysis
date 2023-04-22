@@ -2,11 +2,16 @@ from dataclasses import dataclass, field
 import torch
 from src.config import get_config
 import numpy as np
-from file_utils import store_results
+from src.file_utils import store_results
 flatten_list = lambda irregular_list:[element for item in irregular_list for element in flatten_list(item)] if type(irregular_list) is list else [irregular_list]
 
 @dataclass
-class MNISTResult():
+class ReluActivationResult():
+    codes: list[tuple[bool]]
+    actual: int
+    predicted: int
+
+class MNISTResult(): # Deprecated, use the above, kept here for deserialization of previous results
     codes: list[tuple[bool]]
     actual: int
     predicted: int
@@ -34,7 +39,7 @@ def iterate_and_collect(loader, network):
                 code_chunks_per_layer = [] # contains codes for each layer
                 for layer_idx in range(len(batch_code_numpy)):
                     code_chunks_per_layer.append(tuple(batch_code_numpy[layer_idx][b].astype(bool)))
-                results.append(MNISTResult(codes= code_chunks_per_layer, actual = actual, predicted = predicted))
+                results.append(ReluActivationResult(codes= code_chunks_per_layer, actual = actual, predicted = predicted))
     return results
 
 

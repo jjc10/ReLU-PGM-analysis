@@ -13,9 +13,20 @@ def get_config():
                    'learning_rate': 0.01,
                    'momentum': 0.9,
                    'depth': 2,
-                   'hidden_size': 8,
+                   'hidden_size': 6,
                    'trials': 1}
 
+    return config_dict
+
+def get_cifar_config():
+    config_dict = {'n_epochs': 4,
+                   'batch_size_train': 64,
+                   'batch_size_test': 100,
+                   'learning_rate': 0.01,
+                   'momentum': 0.9,
+                   'depth': 2,
+                   'hidden_size': 8,
+                   'trials': 1}
     return config_dict
 
 def get_pretrained_imagenet_config():

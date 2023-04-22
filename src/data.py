@@ -1,14 +1,16 @@
-import matplotlib.pyplot as plt
+import torch
+import glob
+from dataclasses import dataclass, field
+
+# import tensorflow_datasets as tfds
+import numpy as np
 import torch
 import torchvision
-
-import os
-from dataclasses import dataclass, field
-import glob
-import pandas as pd
-from torchvision import transforms
 from PIL import Image
-# import tensorflow_datasets as tfds
+from torchvision import transforms
+
+from src.file_utils import get_abs_path_from_src
+
 
 def get_mnist_data(config_dict):
     MNIST_MEAN = 0.1307
@@ -34,16 +36,61 @@ def get_mnist_data(config_dict):
     return train_loader, test_loader
 
 
+def get_cifar_data(config_dict, classes=[]):
+    CIFAR_MEAN = (0.49139968, 0.48215827, 0.44653124)
+    CIFAR_STD = (0.24703233, 0.24348505, 0.26158768)
+    directory = get_abs_path_from_src(["cifar" "/"])
+    train_ds = torchvision.datasets.CIFAR10(directory, train=True, download=True,
+                                            transform=torchvision.transforms.Compose([
+                                                torchvision.transforms.ToTensor(),
+                                                torchvision.transforms.Normalize(
+                                                    CIFAR_MEAN, CIFAR_STD),
+                                                torchvision.transforms.Grayscale(),
+                                            ]))
+
+    test_ds = torchvision.datasets.CIFAR10('.', train=False, download=True,
+                                           transform=torchvision.transforms.Compose([
+                                               torchvision.transforms.ToTensor(),
+                                               torchvision.transforms.Normalize(
+                                                   CIFAR_MEAN, CIFAR_STD),
+                                               torchvision.transforms.Grayscale(),
+                                           ]))
+    if len(classes) > 0:  # reduce datasets
+        train_targets = np.array(train_ds.targets)
+        train_target_indices = np.array([], dtype=int)
+        for klass in classes:
+            train_target_indices = np.concatenate((train_target_indices, np.where(train_targets == klass)[0]))
+        train_subset = torch.utils.data.Subset(train_ds, list(train_target_indices))
+
+        test_targets = np.array(test_ds.targets)
+        test_target_indices = np.array([], dtype=int)
+        for klass in classes:
+            test_target_indices = np.concatenate((test_target_indices, np.where(test_targets == klass)[0]))
+        test_subset = torch.utils.data.Subset(test_ds, list(test_target_indices))
+
+        train_loader = torch.utils.data.DataLoader(train_subset, batch_size=config_dict['batch_size_train'],
+                                                   shuffle=True)
+        test_loader = torch.utils.data.DataLoader(test_subset, batch_size=config_dict['batch_size_test'], shuffle=True)
+        return train_loader, test_loader
+
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=config_dict['batch_size_train'], shuffle=True)
+
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=config_dict['batch_size_test'], shuffle=True)
+
+    return train_loader, test_loader
+
+
 @dataclass
 class ImageNetDatasetSpec:
     """Dataclass for specifying what th Imagenet dataset should load"""
     number_of_classes: int = 10
-    samples_per_class:int = 50
+    samples_per_class: int = 50
     """overrides number_of_classes"""
     classes: list[str] = field(default_factory=list)
 
     def num_of_classes(self):
         return len(self.classes) if len(self.classes) > 0 else self.number_of_classes
+
 
 class ImageNetDataset(torch.utils.data.Dataset):
     """Dataset for imagenet.
@@ -56,7 +103,8 @@ class ImageNetDataset(torch.utils.data.Dataset):
 
     image_net_dataset_spec is a data object for narrowing the behaviour for example the number of classes or number of instances per class
     """
-    def __init__(self, directory, transform = None, image_net_dataset_spec: ImageNetDatasetSpec = None):
+
+    def __init__(self, directory, transform=None, image_net_dataset_spec: ImageNetDatasetSpec = None):
         self.directory = directory
         if transform:
             self.transform = transform
@@ -64,7 +112,7 @@ class ImageNetDataset(torch.utils.data.Dataset):
             normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                              std=[0.229, 0.224, 0.225])
             self.transform = transforms.Compose([
-                torchvision.transforms.Grayscale(num_output_channels=3), # there are a few greyscale images
+                torchvision.transforms.Grayscale(num_output_channels=3),  # there are a few greyscale images
                 transforms.Resize((300, 500)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
@@ -81,6 +129,7 @@ class ImageNetDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.image_list)
+
     def __getitem__(self, idx):
         image = Image.open(self.image_list[idx])
         label = self._get_class_label_for_file_name(self.image_list[idx])
@@ -88,7 +137,9 @@ class ImageNetDataset(torch.utils.data.Dataset):
         return image_processed, label
 
     def _get_class_label_for_file_name(self, file_name):
-        return file_name.split('/')[-2] # last item is the file name (format is label_number.jpeg), second to last is the label
+        return file_name.split('/')[
+            -2]  # last item is the file name (format is label_number.jpeg), second to last is the label
+
     def _handle_imagenet_dataset_spec(self, imagenet_dataset_spec):
         if len(imagenet_dataset_spec.classes) > 0:
             classes = imagenet_dataset_spec.classes
@@ -101,13 +152,15 @@ class ImageNetDataset(torch.utils.data.Dataset):
             image_list.extend(image_list_for_class)
         return classes, image_list
 
-def get_imagenet_data(config_dict, directory, train_dataset_spec = None, test_dataset_spec = None):
-    train_ds = ImageNetDataset(f"{directory}/train", image_net_dataset_spec = train_dataset_spec)
-    test_ds = ImageNetDataset(f"{directory}/test", image_net_dataset_spec = test_dataset_spec)
+
+def get_imagenet_data(config_dict, directory, train_dataset_spec=None, test_dataset_spec=None):
+    train_ds = ImageNetDataset(f"{directory}/train", image_net_dataset_spec=train_dataset_spec)
+    test_ds = ImageNetDataset(f"{directory}/test", image_net_dataset_spec=test_dataset_spec)
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=config_dict['batch_size_train'], shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_ds, batch_size=config_dict['batch_size_test'], shuffle=True)
     return train_loader, test_loader
 
-def get_imagenet_test_data(config_dict, directory, subset = None, image_list = []):
-    dataset = ImageNetDataset(directory, subset = subset, image_list=image_list)
+
+def get_imagenet_test_data(config_dict, directory, subset=None, image_list=[]):
+    dataset = ImageNetDataset(directory, subset=subset, image_list=image_list)
     return torch.utils.data.DataLoader(dataset, batch_size=config_dict['batch_size_test'], shuffle=True)
